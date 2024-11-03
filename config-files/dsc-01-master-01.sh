@@ -162,7 +162,7 @@ echo "7- Deploy Online Boutique App"
 echo ""
 echo "-- Deploying Online Boutique App using kubectl yaml file ..."
 echo ""
-kubectl apply -f https://raw.githubusercontent.com/tahershaker/suse-demo-apps-yaml-files/refs/heads/main/onlineboutique.yaml
+kubectl apply -f https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/app-yaml-files/online-boutique-app.yaml
 
 
 #---------------------------------------------------------------------------
