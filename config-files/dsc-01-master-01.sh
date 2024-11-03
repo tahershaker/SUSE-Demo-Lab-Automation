@@ -21,6 +21,8 @@ usage() {
     echo "Argument lists are:"
     echo "--cert_version: The Cert-Manager version to be used while deployement it using Helm."
     echo "--email: The email address to be used while creating a Let's Encrypt Certificate or Issuer."
+    echo "--rancher_demo_url: The Rancher Demo App url to be used while configuring Ingress for HTTP(S) access."
+    echo "--tetris_url: The Tetris App url to be used while configuring Ingress for HTTP(S) access."
 }
 
 #Read passed arguments and pass it to the script
@@ -39,6 +41,14 @@ while [ $# -gt 0 ]; do
     --email)
       email="${2:-}"
       ;;
+    # Match on Rancher Demo App URL
+    --rancher_demo_url)
+      rancher_demo_url="${2:-}"
+      ;;
+    # Match on Tetris App URL
+    --tetris_url)
+      tetris_url="${2:-}"
+      ;;
     # Print error on un-matched passed argument
     *)
       echo "argument is ${1}"
@@ -51,7 +61,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Validate if empty and print usage function in case arguments are empty
-if [ -z "$cert_version" ] || [ -z "$email" ] 
+if [ -z "$cert_version" ] || [ -z "$email" ] || [ -z "$rancher_demo_url" ] || [ -z "$tetris_url" ] 
 then
    echo "Error - Some or all arguments are not provided, please provide all arguments";
    usage
@@ -157,13 +167,42 @@ helm install --wait \
 
 ### Deploy Online Boutique App Using Yaml File Hosted on GitHub
 
-echo "7- Deploy Online Boutique App"
+echo "4- Deploy Online Boutique App"
 
 echo ""
 echo "-- Deploying Online Boutique App using kubectl yaml file ..."
 echo ""
 kubectl apply -f https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/app-yaml-files/online-boutique-app.yaml
 
+#---------------------------------------------------------------------------
+
+# Deploy Rancher Demo App Using Helm
+
+echo "5- Deploy Rancher Demo App"
+
+echo ""
+echo "-- Deploying Rancher Demo App using Helm ..."
+echo ""
+helm install --wait \
+  rancher-demo rodeo/rancher-demo \
+  --namespace rancher-demo \
+  --create-namespace \
+  --set ingress.host=$rancher_demo_url 
+
+#---------------------------------------------------------------------------
+
+# Deploy Tetris App Using Helm
+
+echo "5- Deploy Tetris App"
+
+echo ""
+echo "-- Deploying Tetris App using Helm ..."
+echo ""
+helm install --wait \
+  tetris rodeo/tetris \
+  --namespace tetris \
+  --create-namespace \
+  --set ingress.hosts.host=$tetris_url 
 
 #---------------------------------------------------------------------------
 
