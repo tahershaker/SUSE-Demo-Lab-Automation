@@ -240,6 +240,7 @@ EOF
 echo ""
 echo "-- Creating Rancher Backup operator Helm Chart value file ..."
 echo ""
+mkdir -p yamlfiles
 cat << EOF >> yamlfiles/backup-operator-values.yaml
 s3:
   enabled: true
