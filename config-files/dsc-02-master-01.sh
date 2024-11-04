@@ -88,9 +88,15 @@ echo ""
 echo "-- Adding Helm Repos & Updating ..."
 echo ""
 helm repo add jetstack https://charts.jetstack.io
+helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
 helm repo add rancher-charts https://charts.rancher.io
 helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add rodeo https://rancher.github.io/rodeo
 helm repo update
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
@@ -130,6 +136,10 @@ spec:
           class: nginx 
 EOF
 
+echo ""
+echo "---------------------------------------------------"
+echo ""
+
 #---------------------------------------------------------------------------
 
 ### Deploy & Install Rancher CSI
@@ -152,6 +162,10 @@ echo ""
 helm install --wait \
   rancher-cis-benchmark rancher-charts/rancher-cis-benchmark \
   --namespace cis-operator-system
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 

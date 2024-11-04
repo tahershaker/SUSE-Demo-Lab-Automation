@@ -141,9 +141,15 @@ echo ""
 echo "-- Adding Helm Repos & Updating ..."
 echo ""
 helm repo add jetstack https://charts.jetstack.io
+helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
 helm repo add rancher-charts https://charts.rancher.io
 helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add rodeo https://rancher.github.io/rodeo
 helm repo update
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
@@ -156,6 +162,10 @@ echo ""
 echo "-- Installing Rancher local-path storage provisioner ..."
 echo ""
 kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
@@ -195,6 +205,10 @@ spec:
           class: nginx 
 EOF
 
+echo ""
+echo "---------------------------------------------------"
+echo ""
+
 #---------------------------------------------------------------------------
 
 ### Deploy Rancher Manager
@@ -214,6 +228,10 @@ helm install --wait \
   --set ingress.tls.source=letsEncrypt \
   --set letsEncrypt.email=$email \
   --set bootstrapPassword=$default_pass
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
@@ -297,6 +315,10 @@ echo "-- Creating the Rancher Backup encryptionconfig secret ..."
 echo ""
 kubectl create secret generic encryptionconfig --from-file=yamlfiles/encryption-provider-config.yaml -n cattle-resources-system
 
+echo ""
+echo "---------------------------------------------------"
+echo ""
+
 #---------------------------------------------------------------------------
 
 ### Deploy & Install Rancher CSI
@@ -319,6 +341,10 @@ echo ""
 helm install --wait \
   rancher-cis-benchmark rancher-charts/rancher-cis-benchmark \
   --namespace cis-operator-system
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
@@ -346,6 +372,10 @@ helm install --wait \
   --set persistence.persistentVolumeClaim.redis.storageClass=local-path \
   --set persistence.persistentVolumeClaim.trivy.storageClass=local-path \
   --set harborAdminPassword=SuseDemo@123
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 

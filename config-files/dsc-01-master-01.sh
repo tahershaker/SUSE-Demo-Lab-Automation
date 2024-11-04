@@ -98,9 +98,15 @@ echo ""
 echo "-- Adding Helm Repos & Updating ..."
 echo ""
 helm repo add jetstack https://charts.jetstack.io
+helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
 helm repo add rancher-charts https://charts.rancher.io
 helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add rodeo https://rancher.github.io/rodeo
 helm repo update
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
@@ -140,6 +146,10 @@ spec:
           class: nginx 
 EOF
 
+echo ""
+echo "---------------------------------------------------"
+echo ""
+
 #---------------------------------------------------------------------------
 
 ### Deploy & Install Rancher CSI
@@ -163,6 +173,10 @@ helm install --wait \
   rancher-cis-benchmark rancher-charts/rancher-cis-benchmark \
   --namespace cis-operator-system
 
+echo ""
+echo "---------------------------------------------------"
+echo ""
+
 #---------------------------------------------------------------------------
 
 ### Deploy Online Boutique App Using Yaml File Hosted on GitHub
@@ -173,6 +187,10 @@ echo ""
 echo "-- Deploying Online Boutique App using kubectl yaml file ..."
 echo ""
 kubectl apply -f https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/app-yaml-files/online-boutique-app.yaml
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
@@ -189,6 +207,10 @@ helm install --wait \
   --create-namespace \
   --set ingress.host=$rancher_demo_url 
 
+echo ""
+echo "---------------------------------------------------"
+echo ""
+
 #---------------------------------------------------------------------------
 
 # Deploy Tetris App Using Helm
@@ -203,6 +225,10 @@ helm install --wait \
   --namespace tetris \
   --create-namespace \
   --set ingress.hosts.host=$tetris_url 
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
 
 #---------------------------------------------------------------------------
 
