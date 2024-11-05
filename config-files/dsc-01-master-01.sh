@@ -10,6 +10,7 @@
 #   - Install Let's Encrypt Issuer
 #   - Deploy & Install Rancher CSI
 #   - Deploy Online-Boutique Application
+#   - Deploy NeuVector WAF Demo App
 # Please Note, This script will require several arguments to be passed by the user
 #=============================
 
@@ -21,6 +22,8 @@ usage() {
     echo "Argument lists are:"
     echo "--cert_version: The Cert-Manager version to be used while deployment it using Helm."
     echo "--email: The email address to be used while creating a Let's Encrypt Certificate or Issuer."
+    echo "--online_botique_url: The Online Boutique App url to be used while configuring Rancher Manager Ingress for HTTP(S) access."
+    echo "--nv_demo_url: The NeuVector WAF Demo App url to be used while configuring Rancher Manager Ingress for HTTP(S) access."
 }
 
 #Read passed arguments and pass it to the script
@@ -39,6 +42,14 @@ while [ $# -gt 0 ]; do
     --email)
       email="${2:-}"
       ;;
+    # Match on Online Boutique URL 
+    --online_botique_url)
+      online_botique_url="${2:-}"
+      ;;
+    # Match on NeuVector URL 
+    --nv_demo_url)
+      nv_demo_url="${2:-}"
+      ;;
     # Print error on un-matched passed argument
     *)
       echo "argument is ${1}"
@@ -51,7 +62,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Validate if empty and print usage function in case arguments are empty
-if [ -z "$cert_version" ] || [ -z "$email" ]
+if [ -z "$cert_version" ] || [ -z "$email" ] || [ -z "$online_botique_url" ] || [ -z "$nv_demo_url" ]
 then
    echo "Error - Some or all arguments are not provided, please provide all arguments";
    usage
@@ -92,6 +103,7 @@ helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
 helm repo add rancher-charts https://charts.rancher.io
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add rodeo https://rancher.github.io/rodeo
+helm repo add harbor https://helm.goharbor.io
 helm repo update
 
 echo ""
@@ -177,10 +189,66 @@ echo ""
 echo "-- Deploying Online Boutique App using kubectl yaml file ..."
 echo ""
 kubectl apply -f https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/app-yaml-files/online-boutique-app.yaml
+kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    ingress.kubernetes.io/force-ssl-redirect: "true"
+    kubernetes.io/ingress.class: nginx
+    kubernetes.io/tls-acme: "true"
+  name: onlineboutique-frontend-ingress
+  namespace: onlineboutique
+spec:
+  rules:
+    - host: $online_botique_url
+      http:
+        paths:
+          - backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
+EOF
 
 echo ""
 echo "---------------------------------------------------"
 echo ""
+
+#---------------------------------------------------------------------------
+
+### Deploy NeuVector Demo App Using Yaml File Hosted on GitHub
+
+echo "4- Deploy NeuVector Demo App"
+
+echo ""
+echo "-- Deploying NeuVector Demo App using kubectl yaml file ..."
+echo ""
+kubectl apply -f https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/app-yaml-files/online-boutique-app.yaml
+kubectl apply -f https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/app-yaml-files/online-boutique-app.yaml
+kubectl apply -f https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/app-yaml-files/online-boutique-app.yaml
+kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nv-waf-demo-ing
+  namespace: nv-waf-demo
+spec:
+  rules:
+    - host: $nv_demo_url
+      http:
+        paths:
+          - backend:
+              service:
+                name: nginx-webui
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
+EOF
 
 
 # Print End Of Script Message

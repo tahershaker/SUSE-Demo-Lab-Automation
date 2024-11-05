@@ -23,18 +23,18 @@ curl https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs
    --harbor_url "--add-url-here--"
 ```
 Argument lists & explanation
---cert_version: The Cert-Manager version to be used while deployment it using Helm
---email: The email address to be used while creating a Let's Encrypt Certificate or Issuer
---default_pass: The password to be used while deploying SUSE solutions
---domain: The lab domain name to be used while deploying SUSE solutions
---rancher_version: The Rancher Manager version to be used while deployment it using Helm
---rancher_url: The Rancher Manager url to be used while configuring Rancher Manager Ingress for HTTP(S) access
---s3_access_key: The Access Key to be used to access S3 Bucket to be used while configuring the Rancher Backup
---s3_secret_key: The Access Key Secret to be used to access S3 Bucket to be used while configuring the Rancher Backup
---s3_region: The AWS region where the S3 Bucket is created and configure for access to be used while configuring the Rancher Backup
---s3_bucket_name: The AWS S3 Bucket name to be used while configuring the Rancher Backup
---s3_endpoint: The S3 endpoint url be used while configuring the Rancher Backup
---harbor_url: The Harbor url to be used while configuring Rancher Manager Ingress for HTTP(S) access
+  - --cert_version: The Cert-Manager version to be used while deployment it using Helm
+  - --email: The email address to be used while creating a Let's Encrypt Certificate or Issuer
+  - --default_pass: The password to be used while deploying SUSE solutions
+  - --domain: The lab domain name to be used while deploying SUSE solutions
+  - --rancher_version: The Rancher Manager version to be used while deployment it using Helm
+  - --rancher_url: The Rancher Manager url to be used while configuring Rancher Manager Ingress for HTTP(S) access
+  - --s3_access_key: The Access Key to be used to access S3 Bucket to be used while configuring the Rancher Backup
+  - --s3_secret_key: The Access Key Secret to be used to access S3 Bucket to be used while configuring the Rancher Backup
+  - --s3_region: The AWS region where the S3 Bucket is created and configure for access to be used while configuring the Rancher Backup
+  - --s3_bucket_name: The AWS S3 Bucket name to be used while configuring the Rancher Backup
+  - --s3_endpoint: The S3 endpoint url be used while configuring the Rancher Backup
+  - --harbor_url: The Harbor url to be used while configuring Rancher Manager Ingress for HTTP(S) access
 
 ---
 
@@ -46,8 +46,10 @@ curl https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs
 ```
 
 Argument lists & explanation
---cert_version: The Cert-Manager version to be used while deployment it using Helm
---email: The email address to be used while creating a Let's Encrypt Certificate or Issuer
+  - --cert_version: The Cert-Manager version to be used while deployment it using Helm
+  - --email: The email address to be used while creating a Let's Encrypt Certificate or Issuer
+  - --online_botique_url: The Online Boutique App url to be used while configuring Rancher Manager Ingress for HTTP(S) access
+  - --nv_demo_url: The NeuVector WAF Demo App url to be used while configuring Rancher Manager Ingress for HTTP(S) access
 
 ---
 
@@ -59,7 +61,7 @@ curl https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs
 ```
 
 Argument lists & explanation
---cert_version: The Cert-Manager version to be used while deployment it using Helm
---email: The email address to be used while creating a Let's Encrypt Certificate or Issuer
+  - --cert_version: The Cert-Manager version to be used while deployment it using Helm
+  - --email: The email address to be used while creating a Let's Encrypt Certificate or Issuer
 
 ---
