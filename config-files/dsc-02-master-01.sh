@@ -19,7 +19,7 @@ usage() {
     echo "Usage: $0 --cert-version [Input] --email [Input] --default-pass [Input] --domain [Input] ----"
     echo "All arguments must be provided. A total of 12 arguments"
     echo "Argument lists are:"
-    echo "--cert_version: The Cert-Manager version to be used while deployement it using Helm."
+    echo "--cert_version: The Cert-Manager version to be used while deployment it using Helm."
     echo "--email: The email address to be used while creating a Let's Encrypt Certificate or Issuer."
 }
 
