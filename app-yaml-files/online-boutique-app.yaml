@@ -856,7 +856,7 @@ metadata:
   namespace: onlineboutique
 spec:
   rules:
-    - host: online-boutique-01.suse-rancher-demo.com
+    - host: online-boutique-01.rancher-demo.com
       http:
         paths:
           - backend:
