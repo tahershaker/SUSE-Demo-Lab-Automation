@@ -222,7 +222,7 @@ echo ""
 
 ### Deploy NeuVector Demo App Using Yaml File Hosted on GitHub
 
-echo "4- Deploy NeuVector Demo App"
+echo "5- Deploy NeuVector Demo App"
 
 echo ""
 echo "-- Deploying NeuVector Demo App using kubectl yaml file ..."
