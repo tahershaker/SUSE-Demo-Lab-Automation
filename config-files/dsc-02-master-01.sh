@@ -92,6 +92,7 @@ helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
 helm repo add rancher-charts https://charts.rancher.io
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add rodeo https://rancher.github.io/rodeo
+helm repo add harbor https://helm.goharbor.io
 helm repo update
 
 echo ""
