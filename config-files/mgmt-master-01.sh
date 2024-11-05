@@ -403,7 +403,7 @@ echo "8- Create Cloud Credentials For AWS"
 echo ""
 echo "-- Creating Cloud Credentials For AWS ..."
 echo ""
-kubectl create secret -n cattle-global-data generic aws-creds-sts --from-literal=amazonec2credentialConfig-defaultRegion=$aws_default_region --from-literal=amazonec2credentialConfig-accessKey=$aws_access_key --from-literal=amazonec2credentialConfig-secretKey=$aws_secret_key
+kubectl create secret -n cattle-global-data generic aws-creds --from-literal=amazonec2credentialConfig-defaultRegion=$aws_default_region --from-literal=amazonec2credentialConfig-accessKey=$aws_access_key --from-literal=amazonec2credentialConfig-secretKey=$aws_secret_key
 kubectl annotate secret -n cattle-global-data aws-creds provisioning.cattle.io/driver=aws
 
 echo ""
