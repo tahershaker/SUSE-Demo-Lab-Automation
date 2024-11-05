@@ -34,6 +34,9 @@ usage() {
     echo "--s3_bucket_name: The AWS S3 Bucket name to be used while configuring the Rancher Backup."
     echo "--s3_endpoint: The S3 endpoint url be used while configuring the Rancher Backup."
     echo "--harbor_url: The Harbor url to be used while configuring Rancher Manager Ingress for HTTP(S) access."
+    echo "--aws_default_region: The default AWS region to be used when deploying downstream clusters."
+    echo "--aws_access_key: The AWS admin access key for creating Rancher Cloud Credentials to integrate with AWS."
+    echo "--aws_secret_key: The AWS admin Secret key for creating Rancher Cloud Credentials to integrate with AWS."
 }
 
 #Read passed arguments and pass it to the script
@@ -92,6 +95,18 @@ while [ $# -gt 0 ]; do
     --harbor_url)
       harbor_url="${2:-}"
       ;;
+    # Match on AWS Default Region
+    --aws_default_region)
+      aws_default_region="${2:-}"
+      ;;
+    # Match on AWS Admin Access Key
+    --aws_access_key)
+      aws_access_key="${2:-}"
+      ;;
+    # Match on AWS Admin Secret Key
+    --aws_secret_key)
+      aws_secret_key="${2:-}"
+      ;;
     # Print error on un-matched passed argument
     *)
       echo "argument is ${1}"
@@ -104,7 +119,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Validate if empty and print usage function in case arguments are empty
-if [ -z "$cert_version" ] || [ -z "$email" ] || [ -z "$default_pass" ] || [ -z "$email" ] || [ -z "$default_pass" ] || [ -z "$domain" ] || [ -z "$rancher_version" ] || [ -z "$rancher_url" ] || [ -z "$s3_access_key" ] || [ -z "$s3_secret_key" ] || [ -z "$s3_region" ] || [ -z "$s3_bucket_name" ] || [ -z "$s3_endpoint" ] || [ -z "$harbor_url" ]
+if [ -z "$cert_version" ] || [ -z "$email" ] || [ -z "$default_pass" ] || [ -z "$email" ] || [ -z "$default_pass" ] || [ -z "$domain" ] || [ -z "$rancher_version" ] || [ -z "$rancher_url" ] || [ -z "$s3_access_key" ] || [ -z "$s3_secret_key" ] || [ -z "$s3_region" ] || [ -z "$s3_bucket_name" ] || [ -z "$s3_endpoint" ] || [ -z "$harbor_url" ] || [ -z "$aws_default_region" ] || [ -z "$aws_access_key" ] || [ -z "$aws_secret_key" ]
 then
    echo "Error - Some or all arguments are not provided, please provide all arguments";
    usage
@@ -373,6 +388,23 @@ helm install --wait \
   --set persistence.persistentVolumeClaim.redis.storageClass=local-path \
   --set persistence.persistentVolumeClaim.trivy.storageClass=local-path \
   --set harborAdminPassword=SuseDemo@123
+
+echo ""
+echo "---------------------------------------------------"
+echo ""
+
+#---------------------------------------------------------------------------
+
+### Create Cloud Credentials For AWS
+
+echo "8- Create Cloud Credentials For AWS"
+
+
+echo ""
+echo "-- Creating Cloud Credentials For AWS ..."
+echo ""
+kubectl create secret -n cattle-global-data generic aws-creds-sts --from-literal=amazonec2credentialConfig-defaultRegion=$aws_default_region --from-literal=amazonec2credentialConfig-accessKey=$aws_access_key --from-literal=amazonec2credentialConfig-secretKey=$aws_secret_key
+kubectl annotate secret -n cattle-global-data aws-creds provisioning.cattle.io/driver=aws
 
 echo ""
 echo "---------------------------------------------------"
