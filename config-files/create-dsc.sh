@@ -128,9 +128,19 @@ update_agent_tls_mode
 create_import_cluster() {
     # Generate the cluster name using the default prefix and a formatted number (01, 02, 03, etc.)
     local cluster_name="ts-suse-demo-dsc-$(printf "%02d" $1)"  # Ensures numbers are zero-padded
-    echo "Creating and importing cluster: $cluster_name"
+    echo "Checking if cluster $cluster_name already exists..."
 
-    # Step 1: Create the cluster in Rancher using the Rancher API
+    # Step 1: Check if a cluster with the same name already exists
+    existing_cluster_id=$(curl -s -X GET "https://${rancher_url}/v3/clusters" \
+        -H "Authorization: Bearer $api_token" \
+        -H "Content-Type: application/json" | jq -r ".data[] | select(.name == \"$cluster_name\") | .id")
+
+    if [ -n "$existing_cluster_id" ]; then
+        echo "Cluster $cluster_name already exists with ID: $existing_cluster_id. Skipping creation."
+        return 0  # Skip the creation if the cluster already exists
+    fi
+
+    # Step 2: Create the cluster in Rancher using the Rancher API
     cluster_id=$(curl -s -X POST "https://${rancher_url}/v3/clusters" \
         -H "Authorization: Bearer $api_token" \
         -H "Content-Type: application/json" \
@@ -143,35 +153,30 @@ create_import_cluster() {
     fi
     echo "Cluster $cluster_name created with ID: $cluster_id"
 
-    # Step 2: Fetch the cluster registration token using the Rancher API
-    token_response=$(curl -s -X GET "https://${rancher_url}/v3/clusterregistrationtoken" \
+    # Step 3: Fetch registration tokens for the newly created cluster
+    registration_token=$(curl -s -X GET "https://${rancher_url}/v3/clusterregistrationtoken" \
         -H "Authorization: Bearer $api_token" \
-        -H "Content-Type: application/json")
+        -H "Content-Type: application/json" | jq -r ".data[] | select(.clusterId == \"$cluster_id\") | .token")
 
-    # Debug: Print the full response to check its structure
-    echo "Full response from clusterregistrationtoken API: $token_response"
-
-    # Extract the command URLs from the response for the newly created cluster
-    command_url=$(echo "$token_response" | jq -r ".data[] | select(.clusterId == \"$cluster_id\") | .command")
-    insecure_command_url=$(echo "$token_response" | jq -r ".data[] | select(.clusterId == \"$cluster_id\") | .insecureCommand")
-    node_command=$(echo "$token_response" | jq -r ".data[] | select(.clusterId == \"$cluster_id\") | .nodeCommand")
-
-    # Check if the necessary command URLs are found
-    if [ -z "$command_url" ] || [ -z "$insecure_command_url" ] || [ -z "$node_command" ]; then
-        echo "Failed to retrieve valid import commands for cluster $cluster_name. Exiting."
+    # Check if we successfully retrieved the token
+    if [ -z "$registration_token" ]; then
+        echo "Failed to retrieve the registration token for cluster $cluster_name. Exiting."
         return 1
     fi
+
+    # Step 4: Output the retrieved token and other commands
+    import_command="kubectl apply -f https://rancher.rancher-demo.com/v3/import/$(echo "$registration_token" | sed 's/\//\\\//g')_$(echo "$cluster_id").yaml"
 
     # Output the import commands for the user
     echo "Import commands for $cluster_name:"
     echo "1. Default command:"
-    echo "$command_url"
+    echo "$import_command"
     echo ""
-    echo "2. Without certificate check (useful for self-signed certs):"
-    echo "$insecure_command_url"
+    echo "2. Insecure command (useful for self-signed certs):"
+    echo "curl --insecure -sfL https://rancher.rancher-demo.com/v3/import/$(echo "$registration_token" | sed 's/\//\\\//g')_$(echo "$cluster_id").yaml | kubectl apply -f -"
     echo ""
     echo "3. Node command:"
-    echo "$node_command"
+    echo "sudo docker run -d --privileged --restart=unless-stopped --net=host -v /etc/kubernetes:/etc/kubernetes -v /var/run:/var/run registry.rancher.com/rancher/rancher-agent:v2.9.2 --server https://rancher.rancher-demo.com --token $registration_token"
     echo "-----------------------------------------------------"
 }
 
