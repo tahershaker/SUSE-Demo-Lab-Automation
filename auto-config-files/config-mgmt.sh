@@ -215,7 +215,6 @@ while [[ "$#" -gt 0 ]]; do
             rancher_url="$2"
             validate_non_empty "rancher_url" "$rancher_url"  # Validate non-empty value for rancher_url
             validate_url_format "rancher_url" "$rancher_url"  # Validate input as a proper fqdn format
-            echo "still working"
             shift 2
             ;;
         
