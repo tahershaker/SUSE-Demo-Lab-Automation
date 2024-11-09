@@ -42,6 +42,7 @@ update_agent_tls_mode() {
         -d '{"value": "System Store"}')
 
     # Check if the response indicates success
+    echo "test"
     if echo "$response" | grep -q '"id"'; then
         echo "Successfully initiated update to 'System Store'."
     else
