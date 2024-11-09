@@ -148,6 +148,9 @@ create_import_cluster() {
         -H "Authorization: Bearer $api_token" \
         -H "Content-Type: application/json")
 
+    # Debug: Print the full response to check its structure
+    echo "Full response from generateKubeconfig API: $import_commands_response"
+
     # Extract the import command URL from the response
     import_url=$(echo "$import_commands_response" | jq -r '.command')
 
