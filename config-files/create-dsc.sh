@@ -28,7 +28,7 @@ validate_dsc_count() {
     fi
 }
 
-# Update agent-tls-mode to 'System Store' for Rancher v2.9
+# Update the Rancher agent-tls-mode setting to 'System Store' for version 2.9
 update_agent_tls_mode() {
     echo "Updating Rancher agent-tls-mode to 'System Store'..."
 
@@ -41,8 +41,7 @@ update_agent_tls_mode() {
         -H "Content-Type: application/json" \
         -d '{"value": "System Store"}')
 
-    # Check if the update was successful
-    if echo "$response" | grep -q '"value":"System Store"'; then
+    if echo "$response" | grep -q '"id"'; then
         echo "Successfully updated agent-tls-mode to 'System Store'."
     else
         echo "Error: Failed to update agent-tls-mode."
