@@ -24,6 +24,7 @@
 # Create required functions to be used in the script
 ####################################################
 
+
 # Function to display usage information
 usage() {
     cat <<EOF
