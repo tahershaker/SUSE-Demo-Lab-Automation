@@ -183,6 +183,7 @@ while [[ "$#" -gt 0 ]]; do
         --cert_version)
             cert_version="$2"
             validate_non_empty "cert_version" "$cert_version"  # Validate non-empty value for cert_version
+            validate_version "cert_version" "$cert_version"  # Validate proper version format
             shift 2
             ;;
         
@@ -215,6 +216,7 @@ while [[ "$#" -gt 0 ]]; do
             rancher_url="$2"
             validate_non_empty "rancher_url" "$rancher_url"  # Validate non-empty value for rancher_url
             validate_url_format "rancher_url" "$rancher_url"  # Validate input as a proper fqdn format
+            validate_version "rancher_url" "$rancher_url"  # Validate proper version format
             shift 2
             ;;
         
