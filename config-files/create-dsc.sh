@@ -138,18 +138,24 @@ create_import_cluster() {
 
     # Check if the cluster creation was successful, if not, print an error message
     if [ -z "$cluster_id" ]; then
-        echo "Failed to create cluster $cluster_name"
+        echo "Failed to create cluster $cluster_name. No cluster ID returned."
         return 1
     fi
     echo "Cluster $cluster_name created with ID: $cluster_id"
 
     # Step 2: Generate the cluster import commands using Rancher API
-    import_commands=$(curl -s -X POST "https://${rancher_url}/v3/clusters/${cluster_id}?action=generateKubeconfig" \
+    import_commands_response=$(curl -s -X POST "https://${rancher_url}/v3/clusters/${cluster_id}?action=generateKubeconfig" \
         -H "Authorization: Bearer $api_token" \
         -H "Content-Type: application/json")
 
     # Extract the import command URL from the response
-    import_url=$(echo "$import_commands" | jq -r '.command')
+    import_url=$(echo "$import_commands_response" | jq -r '.command')
+
+    # Check if the import URL is valid (not null or empty)
+    if [ -z "$import_url" ]; then
+        echo "Failed to extract import URL from the response."
+        return 1
+    fi
 
     # Generate the kubectl command with the import URL
     kubectl_command="kubectl apply -f ${import_url}"
@@ -158,7 +164,7 @@ create_import_cluster() {
     kubectl_no_cert_check="curl --insecure -sfL ${import_url} | kubectl apply -f -"
 
     # Extract the limited privilege command (for users with restricted access)
-    limited_privilege_command=$(echo "$import_commands" | jq -r '.limitedPrivilegeCommand')
+    limited_privilege_command=$(echo "$import_commands_response" | jq -r '.limitedPrivilegeCommand')
 
     # Output the import commands for the user
     echo "Import commands for $cluster_name:"
