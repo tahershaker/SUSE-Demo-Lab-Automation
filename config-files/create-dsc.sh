@@ -12,10 +12,10 @@
 # Function to display script usage
 usage() {
     echo ""
-    echo "Usage: $0 --dsc_count [number of downstream clusters] --rancher_url [Rancher Manager URL] --api_token [API token]"
+    echo "Usage: $0 --dsc_count [number of downstream clusters] --rancher_url [Rancher Manager FQDN] --api_token [API token]"
     echo ""
     echo "--dsc_count: The number of downstream clusters to create (an integer between 1 and 5)."
-    echo "--rancher_url: The URL of the Rancher Manager instance."
+    echo "--rancher_url: The FQDN of the Rancher Manager instance (e.g., rancher.example.com)."
     echo "--api_token: The API token for authenticating with Rancher."
     exit 1
 }
@@ -32,8 +32,11 @@ validate_dsc_count() {
 update_agent_tls_mode() {
     echo "Updating Rancher agent-tls-mode to 'System Store'..."
 
+    # Construct the full Rancher Manager URL
+    local full_rancher_url="https://${rancher_url}"
+
     # Rancher Manager URL and API token passed by user
-    response=$(curl -s -X PUT "${rancher_url}/v3/settings/agent-tls-mode" \
+    response=$(curl -s -X PUT "${full_rancher_url}/v3/settings/agent-tls-mode" \
         -H "Authorization: Bearer $api_token" \
         -H "Content-Type: application/json" \
         -d '{"value": "system"}')
@@ -59,7 +62,7 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     --rancher_url)
-      rancher_url="${2:-}"  # The Rancher Manager URL
+      rancher_url="${2:-}"  # The FQDN of the Rancher Manager
       shift
       ;;
     --api_token)
@@ -101,7 +104,7 @@ create_import_cluster() {
     echo "Creating and importing cluster: $cluster_name"
 
     # Step 1: Create the cluster in Rancher using the Rancher API
-    cluster_id=$(curl -s -X POST "${rancher_url}/v3/clusters" \
+    cluster_id=$(curl -s -X POST "https://${rancher_url}/v3/clusters" \
         -H "Authorization: Bearer $api_token" \
         -H "Content-Type: application/json" \
         -d '{"type":"cluster","name":"'"$cluster_name"'"}' | jq -r '.id')
@@ -114,7 +117,7 @@ create_import_cluster() {
     echo "Cluster $cluster_name created with ID: $cluster_id"
 
     # Step 2: Generate the cluster import commands using Rancher API
-    import_commands=$(curl -s -X POST "${rancher_url}/v3/clusters/${cluster_id}?action=generateKubeconfig" \
+    import_commands=$(curl -s -X POST "https://${rancher_url}/v3/clusters/${cluster_id}?action=generateKubeconfig" \
         -H "Authorization: Bearer $api_token" \
         -H "Content-Type: application/json")
 
