@@ -28,7 +28,7 @@ validate_dsc_count() {
     fi
 }
 
-# Update the Rancher agent-tls-mode setting to 'System Store' for version 2.9
+# Update agent-tls-mode to 'System Store' for Rancher v2.9
 update_agent_tls_mode() {
     echo "Updating Rancher agent-tls-mode to 'System Store'..."
 
@@ -36,12 +36,13 @@ update_agent_tls_mode() {
     local full_rancher_url="https://${rancher_url}"
 
     # Rancher Manager URL and API token passed by user
-    response=$(curl -s -X PUT "${full_rancher_url}/v3/settings/agent-tls-mode" \
+    response=$(curl -s -L -X PUT "${full_rancher_url}/v3/settings/agent-tls-mode" \
         -H "Authorization: Bearer $api_token" \
         -H "Content-Type: application/json" \
         -d '{"value": "system"}')
 
-    if echo "$response" | grep -q '"id"'; then
+    # Check if the update was successful
+    if echo "$response" | grep -q '"value":"system"'; then
         echo "Successfully updated agent-tls-mode to 'System Store'."
     else
         echo "Error: Failed to update agent-tls-mode."
