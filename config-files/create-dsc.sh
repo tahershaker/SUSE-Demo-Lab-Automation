@@ -30,6 +30,7 @@ validate_dsc_count() {
 
 # Update the Rancher agent-tls-mode setting to 'System Store' for version 2.9
 update_agent_tls_mode() {
+    #Print
     echo "Checking current agent-tls-mode..."
 
     # Construct the full Rancher Manager URL
