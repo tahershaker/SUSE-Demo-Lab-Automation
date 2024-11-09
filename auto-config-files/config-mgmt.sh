@@ -189,7 +189,7 @@ while [[ "$#" -gt 0 ]]; do
         --email)
             email="$2"
             validate_non_empty "email" "$email"  # Validate non-empty value for email
-            validate_email "$email"  # Validate email format
+            validate_email "email"  "$email" # Validate email format
             shift 2
             ;;
         
