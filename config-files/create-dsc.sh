@@ -41,11 +41,24 @@ update_agent_tls_mode() {
         -H "Content-Type: application/json" \
         -d '{"value": "System Store"}')
 
+    # Check if the response indicates success
     if echo "$response" | grep -q '"id"'; then
-        echo "Successfully updated agent-tls-mode to 'System Store'."
+        echo "Successfully initiated update to 'System Store'."
     else
         echo "Error: Failed to update agent-tls-mode."
         echo "Response: $response"
+        exit 1
+    fi
+
+    # Verify the updated value of agent-tls-mode
+    updated_value=$(curl -s -X GET "${full_rancher_url}/v3/settings/agent-tls-mode" \
+        -H "Authorization: Bearer $api_token" \
+        -H "Content-Type: application/json" | jq -r '.value')
+
+    if [ "$updated_value" == "System Store" ]; then
+        echo "Successfully updated agent-tls-mode to 'System Store'."
+    else
+        echo "Error: The agent-tls-mode is not updated to 'System Store'. Current value is: $updated_value"
         exit 1
     fi
 }
