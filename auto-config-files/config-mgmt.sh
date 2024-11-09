@@ -72,7 +72,7 @@ validate_email() {
 
     # Regular expression for validating email format (supports various valid patterns)
     if ! [[ "$value" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-        echo "Error: --$arg_name must be a valid email address (e.g., user@example.com or firtname.lastname@suse.com)."
+        echo "Error: --$arg_name must be a valid email address (e.g., user@example.com or first.last@suse.com)."
         exit 1  # Stop the script if the email is invalid
     fi
 }
