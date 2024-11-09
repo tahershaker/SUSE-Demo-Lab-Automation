@@ -64,6 +64,18 @@ validate_non_empty() {
     fi
 }
 
+# Function to validate that a given email has a valid format
+# This function checks if the email follows the standard email pattern (user@example.com)
+validate_email() {
+    local arg_name=$1
+    local value=$2
+    # Regular expression for validating email format (user@example.com)
+    if ! [[ "$value" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        echo "Error: --$arg_name must be a valid email address (e.g., user@example.com)."
+        exit 1  # Stop the script if the email is invalid
+    fi
+}
+
 # Function to validate that a given argument is an integer between a specified range (1 to 5 in this case)
 # This function checks if the argument value is a valid integer and falls within the specified range.
 validate_dsc_count() {
