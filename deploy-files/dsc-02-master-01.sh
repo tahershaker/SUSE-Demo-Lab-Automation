@@ -13,6 +13,17 @@
 # Please Note, This script will require several arguments to be passed by the user
 #=============================
 
+# Create Output Color & Text Mode Variabels To Be Used With Echo
+BLACK=$(tput setaf 8)
+GREEN=$(tput setaf 28)
+DARK_GREEN=$(tput setaf 14)
+ORANGE=$(tput setaf 12)
+RED=$(tput setaf 1)
+YELLOW=$(tput setaf 11)
+BLUE=$(tput setaf 4)
+BOLD=$(tput bold)
+RESET=$(tput sgr0)
+
 # Create a Usage Function to be used in case of error or miss-configuration to advise on the usage of the script
 usage() {
     echo ""
