@@ -69,9 +69,10 @@ validate_non_empty() {
 validate_email() {
     local arg_name=$1
     local value=$2
-    # Regular expression for validating email format (user@example.com)
+
+    # Regular expression for validating email format (supports various valid patterns)
     if ! [[ "$value" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-        echo "Error: --$arg_name must be a valid email address (e.g., user@example.com)."
+        echo "Error: --$arg_name must be a valid email address (e.g., user@example.com or firtname.lastname@suse.com)."
         exit 1  # Stop the script if the email is invalid
     fi
 }
