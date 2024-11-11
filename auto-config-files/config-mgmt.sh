@@ -514,7 +514,7 @@ step_4() {
 #=================================================================================================
 
 #-----------------------------------------------
-### 4- Create & Configure A Let's Encrypt Issure 
+### 5- Create & Configure A Let's Encrypt Issure 
 #-----------------------------------------------
 
 step_5() {
@@ -527,7 +527,12 @@ step_5() {
 
     # Log Actions for creating Let's Encrypt Issuer
     log "   Creating Let's Encrypt Issuer..."
-    output=$(kubectl apply -f - <<EOF 2>&1)
+    
+    # Create a temporary file to store the YAML content
+    temp_file=$(mktemp)
+
+    # Write the YAML content to the temporary file
+    cat <<EOF > "$temp_file"
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -543,7 +548,13 @@ spec:
         ingress:
           class: nginx
 EOF
+
+    # Apply the temporary file using kubectl
+    output=$(kubectl apply -f "$temp_file" 2>&1)
     status=$?
+
+    # Clean up the temporary file
+    rm -f "$temp_file"
 
     # Check for errors and log the result
     if [ $status -ne 0 ]; then
