@@ -934,14 +934,14 @@ step_14() {
 #=================================================================================================
 
 #--------------------------------------------------------
-### 17- Update the Rancher agent-tls-mode to System Store 
+### 15- Update the Rancher agent-tls-mode to System Store 
 #--------------------------------------------------------
 
-step_17() {
+step_15() {
     # Print Step Activity
     echo ""
     echo "-----------------------------------------------------------"
-    echo "17- Updating the Rancher agent-tls-mode to System Store ..."
+    echo "15- Updating the Rancher agent-tls-mode to System Store ..."
     echo "-----------------------------------------------------------"
     echo ""
 
@@ -1011,14 +1011,14 @@ step_17() {
 #=================================================================================================
 
 #---------------------------------
-### 18- Create Downstream Clusters 
+### 16- Create Downstream Clusters 
 #---------------------------------
 
-step_18() {
+step_16() {
     # Print Step Activity
     echo ""
     echo "--------------------------------------------------"
-    echo "18- Creating and Importing Downstream Clusters ..."
+    echo "16- Creating and Importing Downstream Clusters ..."
     echo "--------------------------------------------------"
     echo ""
 
@@ -1129,8 +1129,6 @@ if (( starting_step <= 13 )); then step_13; fi
 if (( starting_step <= 14 )); then step_14; fi
 if (( starting_step <= 15 )); then step_15; fi
 if (( starting_step <= 16 )); then step_16; fi
-if (( starting_step <= 17 )); then step_17; fi
-if (( starting_step <= 18 )); then step_18; fi
 
 #=================================================================================================
 #=================================================================================================
