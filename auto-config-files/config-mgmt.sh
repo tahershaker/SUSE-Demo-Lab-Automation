@@ -1163,24 +1163,24 @@ echo "----------------------------------------"
 echo ""
 
 # Execute steps conditionally based on the start_step
-if (( start_step <= 1 )); then step_1; fi
-if (( start_step <= 2 )); then step_2; fi
-if (( start_step <= 3 )); then step_3; fi
-if (( start_step <= 4 )); then step_4; fi
-if (( start_step <= 5 )); then step_5; fi
-if (( start_step <= 6 )); then step_6; fi
-if (( start_step <= 7 )); then step_7; fi
-if (( start_step <= 8 )); then step_8; fi
-if (( start_step <= 9 )); then step_9; fi
-if (( start_step <= 10 )); then step_10; fi
-if (( start_step <= 11 )); then step_11; fi
-if (( start_step <= 12 )); then step_12; fi
-if (( start_step <= 13 )); then step_13; fi
-if (( start_step <= 14 )); then step_14; fi
-if (( start_step <= 15 )); then step_15; fi
-if (( start_step <= 16 )); then step_16; fi
-if (( start_step <= 17 )); then step_17; fi
-if (( start_step <= 18 )); then step_18; fi
+if (( starting_step <= 1 )); then step_1; fi
+if (( starting_step <= 2 )); then step_2; fi
+if (( starting_step <= 3 )); then step_3; fi
+if (( starting_step <= 4 )); then step_4; fi
+if (( starting_step <= 5 )); then step_5; fi
+if (( starting_step <= 6 )); then step_6; fi
+if (( starting_step <= 7 )); then step_7; fi
+if (( starting_step <= 8 )); then step_8; fi
+if (( starting_step <= 9 )); then step_9; fi
+if (( starting_step <= 10 )); then step_10; fi
+if (( starting_step <= 11 )); then step_11; fi
+if (( starting_step <= 12 )); then step_12; fi
+if (( starting_step <= 13 )); then step_13; fi
+if (( starting_step <= 14 )); then step_14; fi
+if (( starting_step <= 15 )); then step_15; fi
+if (( starting_step <= 16 )); then step_16; fi
+if (( starting_step <= 17 )); then step_17; fi
+if (( starting_step <= 18 )); then step_18; fi
 
 #=================================================================================================
 #=================================================================================================
