@@ -204,22 +204,6 @@ log_error() {
     echo "[ERROR] - $1"
 }
 
-# Function to run a command and check for errors
-run_command() {
-    log "      [Log] - Running command: $1"
-    # Run the command and capture both stdout and stderr
-    output=$(eval "$1" 2>&1)
-    status=$?
-    # Check if the command was successful
-    if [ $status -ne 0 ]; then
-        log_error "      Command failed: $1"
-        log_error "      Reason: $output"
-        exit 1
-    else
-        log "      [Log] - Command succeeded"
-    fi
-}
-
 #=======================================================================================================================================
 #=======================================================================================================================================
 
@@ -393,12 +377,13 @@ step_1() {
     echo "------------------------------------"
     echo ""
 
-    # Log Actions
+    # Perform & Log Actions
     log "   Installing Helm ..."
-    # Run Command using the run_command function
-    run_command "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
-    # Log results
-    log "      Helm tool installed."
+    log "   [log] - Running Command: curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3"
+    output=$(curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 2>&1 | bash -s -- 2>&1)
+
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Helm tool installed."; fi
 
     # Print end of step activity
     echo ""
@@ -421,34 +406,36 @@ step_2() {
     echo "----------------------------------"
     echo ""
 
-    # Log and add each Helm repository
-    log "   Adding Helm Repo jetstack ..."
-    run_command "helm repo add jetstack https://charts.jetstack.io"
-    log "      Helm repo jetstack added."
+    # Define an array with Helm repositories and their URLs
+    repos=(
+        "jetstack https://charts.jetstack.io"
+        "rancher-prime https://charts.rancher.com/server-charts/prime"
+        "rancher-charts https://charts.rancher.io"
+        "bitnami https://charts.bitnami.com/bitnami"
+        "rodeo https://rancher.github.io/rodeo"
+        "harbor https://helm.goharbor.io"
+    )
 
-    log "   Adding Helm Repo rancher-prime ..."
-    run_command "helm repo add rancher-prime https://charts.rancher.com/server-charts/prime"
-    log "      Helm repo rancher-prime added."
+    # Loop through the array and add each Helm repo
+    for repo in "${repos[@]}"; do
+        # Split the repo name and URL
+        repo_name=$(echo $repo | awk '{print $1}')
+        repo_url=$(echo $repo | awk '{print $2}')
+        
+        # Add Repo & Log the action
+        log "   Adding Helm repo: $repo_name with URL: $repo_url ..."
+        log "   [log] - Running Command: helm repo add "$repo_name" "$repo_url""
+        output=$(helm repo add "$repo_name" "$repo_url" 2>&1)
+        # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+        status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Successfully added Helm repo: $repo_name."; fi
+    done
 
-    log "   Adding Helm Repo rancher-charts ..."
-    run_command "helm repo add rancher-charts https://charts.rancher.io"
-    log "      Helm repo rancher-charts added."
-
-    log "   Adding Helm Repo bitnami ..."
-    run_command "helm repo add bitnami https://charts.bitnami.com/bitnami"
-    log "      Helm repo bitnami added."
-
-    log "   Adding Helm Repo rodeo ..."
-    run_command "helm repo add rodeo https://rancher.github.io/rodeo"
-    log "      Helm repo rodeo added."
-
-    log "   Adding Helm Repo harbor ..."
-    run_command "helm repo add harbor https://helm.goharbor.io"
-    log "      Helm repo harbor added."
+    log "   All Helm Repos are added, updating Helm Repos ..."
 
     # Update all repositories
     log "   Updating Helm Repos ..."
-    run_command "helm repo update"
+    log "   [log] - Running Command: helm repo update"
+    output=$(helm repo update > /dev/null 2>&1)
     log "      Helm repos updated."
 
     # Print end of step activity
@@ -474,8 +461,10 @@ step_3() {
 
     # Log Actions for installing local-path provisioner
     log "   Installing Rancher local-path storage provisioner ..."
-    run_command "kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml"
-    log "      Rancher local-path storage provisioner installed."
+    log "   [log] - Running Command: kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml"
+    output=$(kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher local-path storage provisioner installed."; fi
 
     # Print end of step activity
     echo ""
@@ -499,10 +488,17 @@ step_4() {
     echo "-------------------------------------------"
     echo ""
 
-    # Log Actions for deploying Cert-Manager
+    # Perform & Log Actions for deploying Cert-Manager
     log "   Deploying Cert-Manager with version $cert_version ..."
-    run_command "helm install --wait cert-manager jetstack/cert-manager --namespace cert-manager --version $cert_version --set installCRDs=true --create-namespace"
-    log "      Cert_Manager Deployed."
+    log "   [log] - Running Command: helm install --wait cert-manager jetstack/cert-manager --namespace cert-manager --version "$cert_version" --set installCRDs=true --create-namespace"
+    output=$(helm install --wait \
+        cert-manager jetstack/cert-manager \
+        --namespace cert-manager \
+        --version "$cert_version" \
+        --set installCRDs=true \
+        --create-namespace 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Cert_Manager Deployed."; fi
 
     # Print end of step activity
     echo ""
@@ -528,11 +524,13 @@ step_5() {
     # Log Actions for creating Let's Encrypt Issuer
     log "   Creating Let's Encrypt Issuer..."
     
-    # Create a temporary file to store the YAML content
-    temp_file=$(mktemp)
-
-    # Write the YAML content to the temporary file
-    cat <<EOF > "$temp_file"
+    # Log Actions for creating Let's Encrypt Issuer Yaml file
+    log "   Creating Let's Encrypt Issuer Yaml File ..."
+    # Create folder or make sure folder is created
+    local file_path="yamlfiles/lets-encrypt-issuer.yaml"
+    mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
+    # Write the YAML content to the file
+    output=$( { cat <<EOF > "$file_path"; } 2>&1
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -548,22 +546,15 @@ spec:
         ingress:
           class: nginx
 EOF
+)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Let's Encrypt Issuer Yaml File created."; fi
 
-    # Apply the temporary file using kubectl
-    output=$(kubectl apply -f "$temp_file" 2>&1)
-    status=$?
-
-    # Clean up the temporary file
-    rm -f "$temp_file"
-
-    # Check for errors and log the result
-    if [ $status -ne 0 ]; then
-        log_error "      Failed to create Let's Encrypt Issuer"
-        log_error "      Reason: $output"  # Log the output (error details)
-        exit 1
-    else
-        log "      Let's Encrypt Issuer created."
-    fi
+    # Apply & log the yaml file using kubectl
+    log "   Applying the yaml file to kubernetes to create the issuer ..."
+    output=$(kubectl apply -f "$file_path" 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Let's Encrypt Issuer created."; fi
 
     # Print end of step activity
     echo ""
@@ -588,8 +579,19 @@ step_6() {
 
     # Log Actions for deploying Rancher Manager
     log "   Deploying Rancher Manager with version $rancher_version ..."
-    run_command "helm install --wait rancher rancher-prime/rancher --namespace cattle-system --create-namespace --version $rancher_version --set replicas=1 --set hostname=$rancher_url --set ingress.tls.source=letsEncrypt --set letsEncrypt.email=$email --set bootstrapPassword=$default_pass"
-    log "      Rancher Manager Deployed."
+    log "   [log] - Running Command: helm install --wait rancher rancher-prime/ranche [Options] - version $rancher_version hostname $rancher_url email=$email Password=$default_pass"
+    output=$(helm install --wait \
+        rancher rancher-prime/rancher \
+        --namespace cattle-system \
+        --create-namespace \
+        --version $rancher_version \
+        --set replicas=1 \
+        --set hostname=$rancher_url \
+        --set ingress.tls.source=letsEncrypt \
+        --set letsEncrypt.email=$email \
+        --set bootstrapPassword=$default_pass 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Manager Deployed."; fi
 
     # Print end of step activity
     echo ""
@@ -617,28 +619,26 @@ step_7() {
     echo "-----------------------------------------------"
     echo ""
 
-    # Log Actions for creating the S3 credentials secret
-    log "   Creating Kubernetes secret for S3 access ..."
-    output=$(kubectl apply -f - <<EOF 2>&1)
+    # Log Actions for creating Secret for S3 Access
+    log "   Creating Secret for S3 Access ..."
+    # Execute kubectl apply with heredoc content, using 'bash -c' to ensure proper handling of EOF.
+    # We use 'bash -c' to run the kubectl command in a subshell, allowing the shell to interpret
+    # the heredoc (EOF syntax) as intended. Without 'bash -c', the shell misinterprets the EOF block
+    # and outputs errors. By using 'bash -c', we isolate the heredoc content within the subshell,
+    # capturing both stdout and stderr into the variable 'output'.
+    output=$(bash -c "kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
   name: s3-creds
 type: Opaque
 data:
-  accessKey: "$(echo -n $s3_access_key | base64)"
-  secretKey: "$(echo -n $s3_secret_key | base64)"
+  accessKey: \"$(echo -n $s3_access_key | base64)\"
+  secretKey: \"$(echo -n $s3_secret_key | base64)\"
 EOF
-    status=$?
-
-    # Check for errors and log the result
-    if [ $status -ne 0 ]; then
-        log_error "      Failed to create S3 credentials secret"
-        log_error "      Reason: $output"
-        exit 1
-    else
-        log "      Kubernetes secret created."
-    fi
+" 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Kubernetes secret created."; fi
 
     # Print end of step activity
     echo ""
@@ -653,80 +653,25 @@ EOF
 ### Deploy & Configure Rancher Backup - several steps included
 #-------------------------------------------------------------
 
-#-----------------------------------------------------------------------
-### 8- Create Rancher Backup Helm Value File - Rancher Backup Deployment
-#-----------------------------------------------------------------------
+#------------------------------------------------------------
+### 8- Deploy Rancher Backup CRDs - Rancher Backup Deployment
+#------------------------------------------------------------
 
 step_8() {
     # Print Step Activity
     echo ""
-    echo "-----------------------------------------------"
-    echo "---- Working on Rancher Backup deployment -----"
-    echo "8- Creating Rancher Backup Helm Value File ..."
-    echo "-----------------------------------------------"
-    echo ""
-
-    # Log Actions for creating Rancher Backup Helm values file
-    log "   Creating Rancher Backup Helm Value File ..."
-    local file_path="yamlfiles/backup-operator-values.yaml"
-    mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
-    
-    # Capture the error output while writing to the file
-    output=$(cat <<EOF > "$file_path" 2>&1
-s3:
-  enabled: true
-  credentialSecretName: "s3-creds"
-  credentialSecretNamespace: "default"
-  region: "${s3_region}"
-  bucketName: "${s3_bucket_name}"
-  folder: ""
-  endpoint: "${s3_endpoint}"
-  endpointCA: ""
-  insecureTLSSkipVerify: true
-persistence:
-  enabled: false
-EOF
-)
-
-    # Check for errors and log the result
-    if [ $? -eq 0 ] && [ -f "$file_path" ]; then
-        log "      Rancher Backup Helm Value File created - $file_path ."
-    else
-        log_error "      Failed to create Rancher Backup Helm Value File - file name: $file_path"
-        log_error "      Reason: $output"  # Print the captured error reason
-        exit 1
-    fi
-
-    # Print end of step activity
-    echo ""
-    echo "         Rancher Backup Helm Value File created."
-    echo "-------------------------------------------------"
-    echo ""
-}
-
-#=================================================================================================
-
-#-------------------------------------------------------------
-### Deploy & Configure Rancher Backup - several steps included
-#-------------------------------------------------------------
-
-#------------------------------------------------------------
-### 9- Deploy Rancher Backup CRDs - Rancher Backup Deployment
-#------------------------------------------------------------
-
-step_9() {
-    # Print Step Activity
-    echo ""
     echo "----------------------------------------------"
     echo "---- Working on Rancher Backup deployment ----"
-    echo "9- Deploying Rancher Backup CRDs ..."
+    echo "8- Deploying Rancher Backup CRDs ..."
     echo "----------------------------------------------"
     echo ""
 
-    # Log Actions for deploying Rancher Backup CRDs
+    # Perform & Log Actions for deploying Rancher Backup CRDs
     log "   Deploying Rancher Backup CRDs ..."
-    run_command "helm install --wait rancher-backup-crd rancher-charts/rancher-backup-crd --namespace cattle-resources-system --create-namespace"
-    log "      Rancher Backup CRDs Deployed."
+    log "   [log] - Running Command: helm install --wait rancher-backup-crd rancher-charts/rancher-backup-crd --namespace cattle-resources-system --create-namespace"
+    output=$(helm install --wait rancher-backup-crd rancher-charts/rancher-backup-crd --namespace cattle-resources-system --create-namespace 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup CRDs Deployed."; fi
 
     # Print end of step activity
     echo ""
@@ -742,23 +687,47 @@ step_9() {
 #-------------------------------------------------------------
 
 #------------------------------------------------------------
-### 10- Deploy Rancher Backup - Rancher Backup Deployment
+### 9- Deploy Rancher Backup - Rancher Backup Deployment
 #------------------------------------------------------------
 
-
-step_10() {
+step_9() {
     # Print Step Activity
     echo ""
     echo "----------------------------------------------"
     echo "---- Working on Rancher Backup deployment ----"
-    echo "10- Deploying Rancher Backup ..."
+    echo "9- Deploying Rancher Backup ..."
     echo "----------------------------------------------"
     echo ""
 
-    # Log Actions for deploying Rancher Backup
-    log "   Deploying Rancher Backup ..."
-    run_command "helm install --wait rancher-backup rancher-charts/rancher-backup --namespace cattle-resources-system --values $file_path"
-    log "      Rancher Backup Deployed."
+    # Log Actions for creating Let's Encrypt Issuer Yaml file
+    log "   Creating Rancher Backup Helm Value File ..."
+    # Create folder or make sure folder is created
+    local file_path="yamlfiles/rancher-backup-helm-value.yaml"
+    mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
+    # Write the YAML content to the file
+    output=$( { cat <<EOF > "$file_path"; } 2>&1
+s3:
+  enabled: true
+  credentialSecretName: "s3-creds"
+  credentialSecretNamespace: "default"
+  region: "${s3_region}"
+  bucketName: "${s3_bucket_name}"
+  folder: ""
+  endpoint: "${s3_endpoint}"
+  endpointCA: ""
+  insecureTLSSkipVerify: true
+persistence:
+  enabled: false
+EOF
+)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup Helm Value File created."; fi
+
+    # Apply & log the yaml file using kubectl
+    log "   Deploying the Rancher Backup ..."
+    output=$(helm install --wait rancher-backup rancher-charts/rancher-backup --namespace cattle-resources-system --values $file_path 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup Deployed."; fi
 
     # Print end of step activity
     echo ""
@@ -774,25 +743,25 @@ step_10() {
 #-------------------------------------------------------------
 
 #---------------------------------------------------------------------------------------------
-### 11- Create Rancher Backup encryption-provider-config Yaml File - Rancher Backup Deployment
+### 10- Create Rancher Backup encryption-provider-config Yaml File - Rancher Backup Deployment
 #---------------------------------------------------------------------------------------------
 
-step_11() {
+step_10() {
     # Print Step Activity
     echo ""
-    echo "--------------------------------------------------------------------"
-    echo "---- Working on Rancher Backup deployment --------------------------"
-    echo "11- Creating Rancher Backup encryption-provider-config Yaml File ..."
-    echo "--------------------------------------------------------------------"
+    echo "-------------------------------------------------------"
+    echo "---- Working on Rancher Backup deployment -------------"
+    echo "10- Creating Rancher Backup encryptionconfig secret ..."
+    echo "-------------------------------------------------------"
     echo ""
 
-    # Log Actions for creating the encryption-provider-config YAML file
+    # Log Actions for creating Let's Encrypt Issuer Yaml file
     log "   Creating Rancher Backup encryption-provider-config Yaml file ..."
+    # Create folder or make sure folder is created
     local file_path="yamlfiles/encryption-provider-config.yaml"
     mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
-
-    # Capture the error output while writing to the file
-    output=$(cat <<EOF > "$file_path" 2>&1
+    # Write the YAML content to the file
+    output=$( { cat <<EOF > "$file_path"; } 2>&1
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
 resources:
@@ -805,46 +774,14 @@ resources:
               secret: c2VjcmV0IGlzIHNlY3VyZQ==
 EOF
 )
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup encryption-provider-config Yaml File created."; fi
 
-    # Check for errors and log the result
-    if [ $? -eq 0 ] && [ -f "$file_path" ]; then
-        log "      Rancher Backup encryption-provider-config Yaml file created - $file_path ."
-    else
-        log_error "      Failed to create encryption-provider-config Yaml - file name: $file_path"
-        log_error "      Reason: $output"  # Print the captured error reason
-        exit 1
-    fi
-
-    # Print end of step activity
-    echo ""
-    echo "         Rancher Backup encryption-provider-config Yaml file created."
-    echo "--------------------------------------------------------------"
-    echo ""
-}
-
-#=================================================================================================
-
-#-------------------------------------------------------------
-### Deploy & Configure Rancher Backup - several steps included
-#-------------------------------------------------------------
-
-#--------------------------------------------------------------------------------
-### 12- Create Rancher Backup encryptionconfig Secret - Rancher Backup Deployment
-#--------------------------------------------------------------------------------
-
-step_12() {
-    # Print Step Activity
-    echo ""
-    echo "-------------------------------------------------------"
-    echo "---- Working on Rancher Backup deployment -------------"
-    echo "12- Creating Rancher Backup encryptionconfig Secret ..."
-    echo "-------------------------------------------------------"
-    echo ""
-
-    # Log Actions for creating the Rancher Backup encryptionconfig secret
-    log "   Creating Rancher Backup encryptionconfig secret ..."
-    run_command "kubectl create secret generic encryptionconfig --from-file=$file_path -n cattle-resources-system"
-    log "      Rancher Backup encryptionconfig secret created."
+    # Apply & log the yaml file using kubectl
+    log "   Deploying the Rancher Backup encryptionconfig secret ..."
+    output=$(kubectl create secret generic encryptionconfig --from-file=$file_path -n cattle-resources-system 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup encryptionconfig secret created."; fi
 
     # Print end of step activity
     echo ""
@@ -856,26 +793,30 @@ step_12() {
 #=================================================================================================
 
 #----------------------------------------------
-### 13- Deploy & Configure Rancher CSI Benchmark 
+### 11- Deploy & Configure Rancher CSI Benchmark 
 #----------------------------------------------
 
-step_13() {
+step_11() {
     # Print Step Activity
     echo ""
     echo "----------------------------------------------------"
-    echo "13- Deploying & Configuring Rancher CSI Benchmark ..."
+    echo "11- Deploying & Configuring Rancher CSI Benchmark ..."
     echo "----------------------------------------------------"
     echo ""
 
     # Log Actions for deploying Rancher CSI Benchmark CRDs
     log "   Deploying Rancher CSI Benchmark CRDs ..."
-    run_command "helm install --wait rancher-cis-benchmark-crd rancher-charts/rancher-cis-benchmark-crd --namespace cis-operator-system --create-namespace"
-    log "      Rancher CSI Benchmark CRDs Deployed."
+    log "   [log] - Running Command: helm install --wait rancher-cis-benchmark-crd rancher-charts/rancher-cis-benchmark-crd --namespace cis-operator-system --create-namespace"
+    output=$(helm install --wait rancher-cis-benchmark-crd rancher-charts/rancher-cis-benchmark-crd --namespace cis-operator-system --create-namespace 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher CSI Benchmark CRDs Deployed."; fi
 
     # Log Actions for deploying Rancher CSI Benchmark
     log "   Deploying Rancher CSI Benchmark ..."
-    run_command "helm install --wait rancher-cis-benchmark rancher-charts/rancher-cis-benchmark --namespace cis-operator-system"
-    log "      Rancher CSI Benchmark Deployed."
+    log "   [log] - Running Command: helm install --wait rancher-cis-benchmark rancher-charts/rancher-cis-benchmark --namespace cis-operator-system"
+    output=$(helm install --wait rancher-cis-benchmark rancher-charts/rancher-cis-benchmark --namespace cis-operator-system 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher CSI Benchmark Deployed."; fi
 
     # Print end of step activity
     echo ""
@@ -887,20 +828,24 @@ step_13() {
 #=================================================================================================
 
 #----------------------------------------------
-### 14- Deploy & Configure Harbor Image Registry 
+### 12- Deploy & Configure Harbor Image Registry 
 #----------------------------------------------
 
-step_14() {
+step_12() {
     # Print Step Activity
     echo ""
     echo "----------------------------------------------------"
-    echo "14- Deploying & Configuring Harbor Image Registry ..."
+    echo "12- Deploying & Configuring Harbor Image Registry ..."
     echo "----------------------------------------------------"
     echo ""
 
     # Log Actions for deploying Harbor Image Registry
     log "   Deploying Harbor Image Registry ..."
-    run_command "helm install --wait harbor harbor/harbor --namespace harbor --create-namespace \
+    log "   [log] - Running Command: helm install --wait harbor harbor/harbor [Options] - hostname $harbor_url Password $default_pass"
+    output=$(helm install --wait \
+        harbor harbor/harbor \
+        --namespace harbor \
+        --create-namespace \
         --set expose.ingress.hosts.core=$harbor_url \
         --set expose.ingress.hosts.notary=notary.$domain \
         --set expose.ingress.annotations.'cert-manager\.io/cluster-issuer'=letsencrypt-prod \
@@ -912,8 +857,9 @@ step_14() {
         --set persistence.persistentVolumeClaim.database.storageClass=local-path \
         --set persistence.persistentVolumeClaim.redis.storageClass=local-path \
         --set persistence.persistentVolumeClaim.trivy.storageClass=local-path \
-        --set harborAdminPassword=$default_pass"
-    log "      Harbor Image Registry Deployed."
+        --set harborAdminPassword=$default_pass 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Harbor Image Registry Deployed."; fi
 
     # Print end of step activity
     echo ""
@@ -925,29 +871,33 @@ step_14() {
 #=================================================================================================
 
 #-----------------------------------------------------
-### 15- Create AWS Cloud Credentails In Rancher manager 
+### 13- Create AWS Cloud Credentails In Rancher manager 
 #-----------------------------------------------------
 
-step_15() {
+step_13() {
     # Print Step Activity
     echo ""
     echo "---------------------------------------------------------"
-    echo "15- Creating AWS Cloud Credentials in Rancher Manager ..."
+    echo "13- Creating AWS Cloud Credentials in Rancher Manager ..."
     echo "---------------------------------------------------------"
     echo ""
 
-    # Log Actions for creating Kubernetes secret for AWS cloud credentials
+    # Perform & Log Actions for creating Kubernetes secret for AWS cloud credentials
     log "   Creating Kubernetes Secret For AWS Cloud Creds ..."
-    run_command "kubectl create secret -n cattle-global-data generic aws-creds \
+    log "   [log] - Running Command: kubectl create secret -n cattle-global-data generic aws-creds [Options] - region $aws_default_region ..."
+    output=$(kubectl create secret -n cattle-global-data generic aws-creds \
         --from-literal=amazonec2credentialConfig-defaultRegion=$aws_default_region \
         --from-literal=amazonec2credentialConfig-accessKey=$aws_access_key \
-        --from-literal=amazonec2credentialConfig-secretKey=$aws_secret_key"
-    log "      Kubernetes Secret created."
+        --from-literal=amazonec2credentialConfig-secretKey=$aws_secret_key 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Kubernetes Secret created."; fi
 
-    # Log Actions for annotating Kubernetes secret for AWS cloud credentials
+    # Perform & Log Actions for annotating Kubernetes secret for AWS cloud credentials
     log "   Annotating Kubernetes Secret For AWS Cloud Creds ..."
-    run_command "kubectl annotate secret -n cattle-global-data aws-creds provisioning.cattle.io/driver=aws"
-    log "      Kubernetes Secret annotated."
+    log "   [log] - Running Command: kubectl annotate secret -n cattle-global-data aws-creds provisioning.cattle.io/driver=aws"
+    output=$(kubectl annotate secret -n cattle-global-data aws-creds provisioning.cattle.io/driver=aws 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Kubernetes Secret annotated."; fi
 
     # Print end of step activity
     echo ""
@@ -959,14 +909,14 @@ step_15() {
 #=================================================================================================
 
 #-------------------------------------------------
-### 16- Create A Rancher manager API Bearrer Token 
+### 14- Create A Rancher manager API Bearrer Token 
 #-------------------------------------------------
 
-step_16() {
+step_14() {
     # Print Step Activity
     echo ""
     echo "----------------------------------------------------"
-    echo "16- Creating A Rancher Manager API Bearer Token ..."
+    echo "14- Creating A Rancher Manager API Bearer Token ..."
     echo "----------------------------------------------------"
     echo ""
 
