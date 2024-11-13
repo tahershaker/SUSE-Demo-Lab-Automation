@@ -96,101 +96,69 @@ validate_integer() {
 
 # Function to check if Rancher Manager is up and running
 check_rancher_manager() {
-    local interval=10       # Interval in seconds between each check
-    local auth_attempts=10    # Max attempts to check authentication and token generation
-    local attempt=1
-
-    log "   Checking if Rancher Manager at $rancher_url is up and running..."
 
     # First loop to check if Rancher Manager is responding (HTTP 200)
+    log "   [log] - Checking if Rancher Manager at $rancher_url is responsive ..."
     while true; do
         # Use curl to check if Rancher Manager is responding
         response=$(curl -s -o /dev/null -w "%{http_code}" "https://$rancher_url")
-
-        # Check if HTTP response code is 200 (OK)
-        if [ "$response" -eq 200 ]; then
-            log "   Rancher Manager is up and running!"
-            break
-        else
-            log "   Rancher Manager is not available yet. Retrying in $interval seconds ..."
-            sleep "$interval"
-        fi
+        # Check if HTTP response code is 200 (OK) in a one-liner
+        [ "$response" -eq 200 ] && { log "   [log] - Rancher Manager is responsive!"; break; } || { log "   [log] - Rancher Manager is not responsive yet. Retrying in 10 seconds ..."; sleep 10; }
     done
 
-    log "   Rancher Manager is now up, checking if fully functional by authenticating and generating API token..."
-
-    # Second loop to check authentication and token generation
-    while [ $attempt -le $auth_attempts ]; do
+    # Second loop to check authentication and get token generation
+    # Check if bearer_token is already set, if set then skip 
+    log "   [log] - Checking if Rancher Manager at $rancher_url is fully functional - authenticating ..."
+    while true; do
+        log "   [log] - Trying to authenticate with Rancher Manager ..."
         response=$(curl -s -X POST "https://$rancher_url/v3-public/localProviders/local?action=login" \
-          -H "Content-Type: application/json" \
-          -d '{
-                "username": "admin",  # Hardcoded username
+        -H "Content-Type: application/json" \
+        -d '{
+                "username": "admin",
                 "password": "'"$default_pass"'"
-              }')
+            }')
 
         # Extract error message if available
         error_message=$(echo "$response" | jq -r '.message // empty')
-
-        # Check if there's an error during authentication
-        if [ -n "$error_message" ]; then
-            log "   Attempt $attempt: Authentication failed with error: $error_message"
-            attempt=$((attempt + 1))
-            log "   Retrying authentication in $interval seconds ..."
-            sleep "$interval"
-        else
-            log "   Successfully authenticated to Rancher Manager."
-            test_token=$(echo "$response" | jq -r '.token')
-            break
-        fi
+        # Check if there's an error during authentication in one line
+        [ -n "$error_message" ] && { log "   [log] - Authentication failed with error: $error_message"; log "   [log] - Retrying authentication in 10 seconds ..."; sleep 10; } || { log "   [log] - Successfully authenticated to Rancher Manager & temp token is created."; temp_token=$(echo "$response" | jq -r '.token'); break; }
     done
-
-    # Check if bearer_token is still empty after the retries
-    if [ -z "$test_token" ]; then
-        log_error "   Failed to authenticate and generate API token after $auth_attempts attempts. Exiting."
-        exit 1
-    fi
 }
 
 # Function to authenticate with Rancher Manager and generate a token adding it to bearer_token variable
 authenticate_and_get_token() {
     # Check if bearer_token is set and starts with "token:"
-    if [[ -z "$bearer_token" || ! "$bearer_token" =~ ^token: ]]; then
+    log "   [log] - Checking if bearer_token is already available ..."
+    if [[ -z "$bearer_token" || ! "$bearer_token" =~ ^token- ]]; then
         # Log Actions for authenticating with Rancher Manager API to retrieve Bearer token
-        log "   bearer_token API token was not found, generating one ..."
-        log "   Authenticating with Rancher Manager and Retrieving API Token ..."
+        log "   [log] - bearer_token API token was not found, generating one ..."
+        log "   [log] - Authenticating with Rancher Manager and Retrieving API Token ..."
 
         # Log Actions for checking if Rancher Manager is up and running
-        log "   Checking if Rancher Manager is Up & Running ..."
-        check_rancher_manager "$rancher_url"
+        log "   [log] - Checking if Rancher Manager is Up & Running ..."
+        check_rancher_manager
+        log "   [log] - Rancher Manager is now Up & Running, generating a permanent token..."
 
+        # Step 1: Send authentication request to Rancher Manager to retrieve token
         response=$(curl -s -X POST "https://$rancher_url/v3-public/localProviders/local?action=login" \
           -H "Content-Type: application/json" \
           -d '{
-                "username": "admin",  # Hardcoded username
+                "username": "admin",
                 "password": "'"$default_pass"'"
               }')
 
         # Check if the response contains an error
-        error_message=$(echo "$response" | jq -r '.message // empty')
-        if [ -n "$error_message" ]; then
-            log_error "      Error during authentication: $error_message"
-            exit 1
-        else
-            log "      Successfully authenticated to Rancher Manager - Retrieving API Token ...."
-        fi
+        [[ -n "$(echo "$response" | jq -r '.message // empty')" ]] && log_error "   Error during authentication: $(echo "$response" | jq -r '.message')" && exit 1
+
+        log "   [log] - Successfully authenticated to Rancher Manager - Retrieving API Token ...."
 
         # Step 2: Extract the Bearer token from the login response
         bearer_token=$(echo "$response" | jq -r '.token')
 
-        # Check if we successfully retrieved the token
-        if [ -z "$bearer_token" ]; then
-            log_error "      Failed to retrieve the Bearer token - Bearer token variable is empty. Full response is $response"
-            exit 1
-        else
-            log "      Successfully retrieved the Bearer token - Bearer token is $bearer_token"
-        fi
+        # Check if we successfully retrieved the token and it starts with "token:"
+        [[ -n "$bearer_token" && "$bearer_token" =~ ^token: ]] && log_error "   Failed to retrieve a valid Bearer token. Full response: $response" && exit 1 || log "   [log] - Successfully retrieved a valid Bearer token: $bearer_token"
     else
-        log "      Valid bearer token found, proceeding with next steps."
+        log "   [log] - Valid bearer token found, - Bearer token is $bearer_token - proceeding with next steps."
     fi
 }
 
@@ -362,6 +330,7 @@ echo "========================================================"
 echo "------------------ Start of Script ---------------------"
 echo " Automating Rancher Management and components deployment"
 echo "========================================================"
+echo ""
 
 #=================================================================================================
 
@@ -371,24 +340,23 @@ echo "========================================================"
 
 step_1() {
     # Print Step Activity
-    echo ""
     echo "------------------------------------"
     echo "1- Installing & Configuring Helm ..."
     echo "------------------------------------"
     echo ""
 
     # Perform & Log Actions
-    log "   Installing Helm ..."
+    log "Installing Helm ..."
     log "   [log] - Running Command: curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3"
     output=$(curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 2>&1 | bash -s -- 2>&1)
 
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Helm tool installed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Helm tool installed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Helm tool is now install & ready for use."
-    echo "--------------------------------------------------"
+    echo "*****************************************"
+    echo "Helm tool is now install & ready for use."
+    echo "-----------------------------------------"
     echo ""
 }
 
@@ -400,7 +368,6 @@ step_1() {
 
 step_2() {
     # Print Step Activity
-    echo ""
     echo "----------------------------------"
     echo "2- Adding Helm & updating Repos..."
     echo "----------------------------------"
@@ -423,25 +390,25 @@ step_2() {
         repo_url=$(echo $repo | awk '{print $2}')
         
         # Add Repo & Log the action
-        log "   Adding Helm repo: $repo_name with URL: $repo_url ..."
+        log "Adding Helm repo: $repo_name with URL: $repo_url ..."
         log "   [log] - Running Command: helm repo add "$repo_name" "$repo_url""
         output=$(helm repo add "$repo_name" "$repo_url" 2>&1)
         # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-        status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Successfully added Helm repo: $repo_name."; fi
+        status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Successfully added Helm repo: $repo_name."; fi
     done
 
-    log "   All Helm Repos are added, updating Helm Repos ..."
+    log "   [log] - All Helm Repos are added, updating Helm Repos ..."
 
     # Update all repositories
-    log "   Updating Helm Repos ..."
+    log "Updating Helm Repos ..."
     log "   [log] - Running Command: helm repo update"
     output=$(helm repo update > /dev/null 2>&1)
     log "      Helm repos updated."
 
     # Print end of step activity
-    echo ""
-    echo "         Helm tool is now installed & all repos are added and updated."
-    echo "---------------------------------------------------------------------"
+    echo "*****************************************"
+    echo "Helm tool is now installed & all repos are added and updated."
+    echo "-------------------------------------------------------------"
     echo ""
 }
 
@@ -453,26 +420,24 @@ step_2() {
 
 step_3() {
     # Print Step Activity
-    echo ""
     echo "--------------------------------------------------------"
     echo "3- Installing Rancher local-path storage provisioner ..."
     echo "--------------------------------------------------------"
     echo ""
 
     # Log Actions for installing local-path provisioner
-    log "   Installing Rancher local-path storage provisioner ..."
+    log "Installing Rancher local-path storage provisioner ..."
     log "   [log] - Running Command: kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml"
     output=$(kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher local-path storage provisioner installed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher local-path storage provisioner installed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher local-path storage provisioner is installed & configured."
-    echo "--------------------------------------------------------------------------"
+    echo "*****************************************"
+    echo "Rancher local-path storage provisioner is installed & configured."
+    echo "-----------------------------------------------------------------"
     echo ""
 }
-
 
 #=================================================================================================
 
@@ -482,15 +447,14 @@ step_3() {
 
 step_4() {
     # Print Step Activity
-    echo ""
     echo "-------------------------------------------"
     echo "4- Deploying & Configuring Cert_Manager ..."
     echo "-------------------------------------------"
     echo ""
 
     # Perform & Log Actions for deploying Cert-Manager
-    log "   Deploying Cert-Manager with version $cert_version ..."
-    log "   [log] - Running Command: helm install --wait cert-manager jetstack/cert-manager --namespace cert-manager --version "$cert_version" --set installCRDs=true --create-namespace"
+    log "Deploying Cert-Manager with version $cert_version ..."
+    log "   [log] - Running Command: helm install --wait cert-manager jetstack/cert-manager [Options] version "$cert_version""
     output=$(helm install --wait \
         cert-manager jetstack/cert-manager \
         --namespace cert-manager \
@@ -498,12 +462,12 @@ step_4() {
         --set installCRDs=true \
         --create-namespace 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Cert_Manager Deployed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Cert_Manager Deployed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Cert_Manager is deployed & configured."
-    echo "-----------------------------------------------"
+    echo "*****************************************"
+    echo "Cert_Manager is deployed & configured."
+    echo "-----------------------------------------"
     echo ""
 }
 
@@ -515,21 +479,21 @@ step_4() {
 
 step_5() {
     # Print Step Activity
-    echo ""
     echo "-----------------------------------------------------"
     echo "5- Creating & Configuring A Let's Encrypt Issuer ..."
     echo "-----------------------------------------------------"
     echo ""
 
     # Log Actions for creating Let's Encrypt Issuer
-    log "   Creating Let's Encrypt Issuer..."
+    log "Creating Let's Encrypt Issuer..."
     
     # Log Actions for creating Let's Encrypt Issuer Yaml file
-    log "   Creating Let's Encrypt Issuer Yaml File ..."
+    log "   [log] - Creating Let's Encrypt Issuer Yaml File ..."
     # Create folder or make sure folder is created
     local file_path="yamlfiles/lets-encrypt-issuer.yaml"
     mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
     # Write the YAML content to the file
+    log "   [log] - Running Command: cat <<EOF > "$file_path" ... file content"
     output=$( { cat <<EOF > "$file_path"; } 2>&1
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -548,18 +512,19 @@ spec:
 EOF
 )
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Let's Encrypt Issuer Yaml File created."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Let's Encrypt Issuer Yaml File created."; fi
 
     # Apply & log the yaml file using kubectl
-    log "   Applying the yaml file to kubernetes to create the issuer ..."
+    log "Applying the yaml file to kubernetes to create the issuer ..."
+    log "   [log] - Running Command: kubectl apply -f "$file_path""
     output=$(kubectl apply -f "$file_path" 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Let's Encrypt Issuer created."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Let's Encrypt Issuer created."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Let's Encrypt Issuer is created & configured."
-    echo "------------------------------------------------------"
+    echo "*****************************************"
+    echo "Let's Encrypt Issuer is created & configured."
+    echo "---------------------------------------------"
     echo ""
 }
 
@@ -571,14 +536,13 @@ EOF
 
 step_6() {
     # Print Step Activity
-    echo ""
     echo "----------------------------------------------"
     echo "6- Deploying & Configuring Rancher Manager ..."
     echo "----------------------------------------------"
     echo ""
 
     # Log Actions for deploying Rancher Manager
-    log "   Deploying Rancher Manager with version $rancher_version ..."
+    log "Deploying Rancher Manager with version $rancher_version ..."
     log "   [log] - Running Command: helm install --wait rancher rancher-prime/ranche [Options] - version $rancher_version hostname $rancher_url email=$email Password=$default_pass"
     output=$(helm install --wait \
         rancher rancher-prime/rancher \
@@ -591,12 +555,12 @@ step_6() {
         --set letsEncrypt.email=$email \
         --set bootstrapPassword=$default_pass 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Manager Deployed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Manager Deployed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher Manager is deployed & configured."
-    echo "--------------------------------------------------"
+    echo "*****************************************"
+    echo "Rancher Manager is deployed & configured."
+    echo "-----------------------------------------"
     echo ""
 }
 
@@ -612,7 +576,6 @@ step_6() {
 
 step_7() {
     # Print Step Activity
-    echo ""
     echo "-----------------------------------------------"
     echo "---- Working on Rancher Backup deployment -----"
     echo "7- Creating Kubernetes Secret for S3 Access ..."
@@ -620,12 +583,13 @@ step_7() {
     echo ""
 
     # Log Actions for creating Secret for S3 Access
-    log "   Creating Secret for S3 Access ..."
+    log "Creating Secret for S3 Access ..."
     # Execute kubectl apply with heredoc content, using 'bash -c' to ensure proper handling of EOF.
     # We use 'bash -c' to run the kubectl command in a subshell, allowing the shell to interpret
     # the heredoc (EOF syntax) as intended. Without 'bash -c', the shell misinterprets the EOF block
     # and outputs errors. By using 'bash -c', we isolate the heredoc content within the subshell,
     # capturing both stdout and stderr into the variable 'output'.
+    log "   [log] - Running Command: kubectl apply -f - <<EOF ... file content"
     output=$(bash -c "kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
@@ -638,12 +602,12 @@ data:
 EOF
 " 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Kubernetes secret created."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Kubernetes secret created."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Kubernetes secret for S3 access to be used for Rancher Backup is created."
-    echo "----------------------------------------------------------------------------------"
+    echo "*****************************************"
+    echo "Kubernetes secret for S3 access to be used for Rancher Backup is created."
+    echo "-------------------------------------------------------------------------"
     echo ""
 }
 
@@ -659,7 +623,6 @@ EOF
 
 step_8() {
     # Print Step Activity
-    echo ""
     echo "----------------------------------------------"
     echo "---- Working on Rancher Backup deployment ----"
     echo "8- Deploying Rancher Backup CRDs ..."
@@ -667,16 +630,16 @@ step_8() {
     echo ""
 
     # Perform & Log Actions for deploying Rancher Backup CRDs
-    log "   Deploying Rancher Backup CRDs ..."
+    log "Deploying Rancher Backup CRDs ..."
     log "   [log] - Running Command: helm install --wait rancher-backup-crd rancher-charts/rancher-backup-crd --namespace cattle-resources-system --create-namespace"
     output=$(helm install --wait rancher-backup-crd rancher-charts/rancher-backup-crd --namespace cattle-resources-system --create-namespace 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup CRDs Deployed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Backup CRDs Deployed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher Backup CRDs are deployed."
-    echo "------------------------------------------"
+    echo "*****************************************"
+    echo "Rancher Backup CRDs are deployed."
+    echo "---------------------------------"
     echo ""
 }
 
@@ -692,7 +655,6 @@ step_8() {
 
 step_9() {
     # Print Step Activity
-    echo ""
     echo "----------------------------------------------"
     echo "---- Working on Rancher Backup deployment ----"
     echo "9- Deploying Rancher Backup ..."
@@ -700,11 +662,12 @@ step_9() {
     echo ""
 
     # Log Actions for creating Let's Encrypt Issuer Yaml file
-    log "   Creating Rancher Backup Helm Value File ..."
+    log "Creating Rancher Backup Helm Value File ..."
     # Create folder or make sure folder is created
     local file_path="yamlfiles/rancher-backup-helm-value.yaml"
     mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
     # Write the YAML content to the file
+    log "   [log] - Running Command: cat <<EOF > "$file_path" ... file content"
     output=$( { cat <<EOF > "$file_path"; } 2>&1
 s3:
   enabled: true
@@ -721,18 +684,19 @@ persistence:
 EOF
 )
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup Helm Value File created."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Backup Helm Value File created."; fi
 
     # Apply & log the yaml file using kubectl
-    log "   Deploying the Rancher Backup ..."
+    log "Deploying the Rancher Backup ..."
+    log "   [log] - Running Command: helm install --wait rancher-backup rancher-charts/rancher-backup [Options] file $file_path"
     output=$(helm install --wait rancher-backup rancher-charts/rancher-backup --namespace cattle-resources-system --values $file_path 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup Deployed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Backup Deployed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher Backup is deployed."
-    echo "------------------------------------"
+    echo "*****************************************"
+    echo "Rancher Backup is deployed."
+    echo "---------------------------"
     echo ""
 }
 
@@ -748,7 +712,6 @@ EOF
 
 step_10() {
     # Print Step Activity
-    echo ""
     echo "-------------------------------------------------------"
     echo "---- Working on Rancher Backup deployment -------------"
     echo "10- Creating Rancher Backup encryptionconfig secret ..."
@@ -756,11 +719,12 @@ step_10() {
     echo ""
 
     # Log Actions for creating Let's Encrypt Issuer Yaml file
-    log "   Creating Rancher Backup encryption-provider-config Yaml file ..."
+    log "Creating Rancher Backup encryption-provider-config Yaml file ..."
     # Create folder or make sure folder is created
     local file_path="yamlfiles/encryption-provider-config.yaml"
     mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
     # Write the YAML content to the file
+    log "   [log] - Running Command: cat <<EOF > "$file_path" ... file content"
     output=$( { cat <<EOF > "$file_path"; } 2>&1
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
@@ -775,18 +739,19 @@ resources:
 EOF
 )
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup encryption-provider-config Yaml File created."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Backup encryption-provider-config Yaml File created."; fi
 
     # Apply & log the yaml file using kubectl
-    log "   Deploying the Rancher Backup encryptionconfig secret ..."
+    log "Deploying the Rancher Backup encryptionconfig secret ..."
+    log "   [log] - Running Command: kubectl create secret generic encryptionconfig --from-file=$file_path -n cattle-resources-system"
     output=$(kubectl create secret generic encryptionconfig --from-file=$file_path -n cattle-resources-system 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher Backup encryptionconfig secret created."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Backup encryptionconfig secret created."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher Backup encryptionconfig secret is created."
-    echo "----------------------------------------------------------"
+    echo "*****************************************"
+    echo "Rancher Backup encryptionconfig secret is created."
+    echo "--------------------------------------------------"
     echo ""
 }
 
@@ -798,30 +763,29 @@ EOF
 
 step_11() {
     # Print Step Activity
-    echo ""
     echo "----------------------------------------------------"
     echo "11- Deploying & Configuring Rancher CSI Benchmark ..."
     echo "----------------------------------------------------"
     echo ""
 
     # Log Actions for deploying Rancher CSI Benchmark CRDs
-    log "   Deploying Rancher CSI Benchmark CRDs ..."
+    log "Deploying Rancher CSI Benchmark CRDs ..."
     log "   [log] - Running Command: helm install --wait rancher-cis-benchmark-crd rancher-charts/rancher-cis-benchmark-crd --namespace cis-operator-system --create-namespace"
     output=$(helm install --wait rancher-cis-benchmark-crd rancher-charts/rancher-cis-benchmark-crd --namespace cis-operator-system --create-namespace 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher CSI Benchmark CRDs Deployed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher CSI Benchmark CRDs Deployed."; fi
 
     # Log Actions for deploying Rancher CSI Benchmark
-    log "   Deploying Rancher CSI Benchmark ..."
+    log "Deploying Rancher CSI Benchmark ..."
     log "   [log] - Running Command: helm install --wait rancher-cis-benchmark rancher-charts/rancher-cis-benchmark --namespace cis-operator-system"
     output=$(helm install --wait rancher-cis-benchmark rancher-charts/rancher-cis-benchmark --namespace cis-operator-system 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Rancher CSI Benchmark Deployed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher CSI Benchmark Deployed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher CSI Benchmark is deployed & configured."
-    echo "--------------------------------------------------------"
+    echo "*****************************************"
+    echo "Rancher CSI Benchmark is deployed & configured."
+    echo "-----------------------------------------------"
     echo ""
 }
 
@@ -833,14 +797,13 @@ step_11() {
 
 step_12() {
     # Print Step Activity
-    echo ""
     echo "----------------------------------------------------"
     echo "12- Deploying & Configuring Harbor Image Registry ..."
     echo "----------------------------------------------------"
     echo ""
 
     # Log Actions for deploying Harbor Image Registry
-    log "   Deploying Harbor Image Registry ..."
+    log "Deploying Harbor Image Registry ..."
     log "   [log] - Running Command: helm install --wait harbor harbor/harbor [Options] - hostname $harbor_url Password $default_pass"
     output=$(helm install --wait \
         harbor harbor/harbor \
@@ -859,12 +822,12 @@ step_12() {
         --set persistence.persistentVolumeClaim.trivy.storageClass=local-path \
         --set harborAdminPassword=$default_pass 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Harbor Image Registry Deployed."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Harbor Image Registry Deployed."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Harbor Image Registry is deployed & configured."
-    echo "--------------------------------------------------------"
+    echo "*****************************************"
+    echo "Harbor Image Registry is deployed & configured."
+    echo "-----------------------------------------------"
     echo ""
 }
 
@@ -876,103 +839,170 @@ step_12() {
 
 step_13() {
     # Print Step Activity
-    echo ""
     echo "---------------------------------------------------------"
     echo "13- Creating AWS Cloud Credentials in Rancher Manager ..."
     echo "---------------------------------------------------------"
     echo ""
 
     # Perform & Log Actions for creating Kubernetes secret for AWS cloud credentials
-    log "   Creating Kubernetes Secret For AWS Cloud Creds ..."
+    log "Creating Kubernetes Secret For AWS Cloud Creds ..."
     log "   [log] - Running Command: kubectl create secret -n cattle-global-data generic aws-creds [Options] - region $aws_default_region ..."
     output=$(kubectl create secret -n cattle-global-data generic aws-creds \
         --from-literal=amazonec2credentialConfig-defaultRegion=$aws_default_region \
         --from-literal=amazonec2credentialConfig-accessKey=$aws_access_key \
         --from-literal=amazonec2credentialConfig-secretKey=$aws_secret_key 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Kubernetes Secret created."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Kubernetes Secret created."; fi
 
     # Perform & Log Actions for annotating Kubernetes secret for AWS cloud credentials
-    log "   Annotating Kubernetes Secret For AWS Cloud Creds ..."
+    log "Annotating Kubernetes Secret For AWS Cloud Creds ..."
     log "   [log] - Running Command: kubectl annotate secret -n cattle-global-data aws-creds provisioning.cattle.io/driver=aws"
     output=$(kubectl annotate secret -n cattle-global-data aws-creds provisioning.cattle.io/driver=aws 2>&1)
     # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
-    status=$?; if [ $status -ne 0 ]; then log_error "      Command failed - Reason: $output"; exit 1; else log "      [Log] - Command succeeded"; log "      Kubernetes Secret annotated."; fi
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Kubernetes Secret annotated."; fi
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher Manager AWS Cloud Credentials configured."
-    echo "----------------------------------------------------------"
+    echo "*****************************************"
+    echo "Rancher Manager AWS Cloud Credentials configured."
+    echo "-------------------------------------------------"
     echo ""
 }
 
 #=================================================================================================
 
-#-------------------------------------------------
-### 14- Create A Rancher manager API Bearrer Token 
-#-------------------------------------------------
+#-------------------------------------------------------------------
+### 14- Add Helm Chart Repo catalog to Rancher In Management Cluster 
+#-------------------------------------------------------------------
 
 step_14() {
     # Print Step Activity
+    echo "-----------------------------------------------------------------------"
+    echo "14- Adding Helm Chart Repo catalog to Rancher In Management Cluster ..."
+    echo "-----------------------------------------------------------------------"
     echo ""
+
+    # Perform & Log Actions for creating Kubernetes secret for AWS cloud credentials
+    log "Creating the Rancher Catalog Helm Chart Yaml file for cluster-template ..."
+    # Create folder or make sure folder is created
+    local file_path="yamlfiles/rancher-helm-catalog-cluster-template.yaml"
+    mkdir -p "$(dirname "$file_path")" >/dev/null 2>&1
+    # Write the YAML content to the file
+    log "   [log] - Running Command: cat <<EOF > "$file_path" ... file content"
+    output=$( { cat <<EOF > "$file_path"; } 2>&1
+apiVersion: catalog.cattle.io/v1
+kind: ClusterRepo
+metadata:
+  name: cluster-template
+  namespace: fleet-local
+spec:
+  url: https://rancherfederal.github.io/rancher-cluster-templates
+EOF
+)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Catalog Helm Chart Yaml File created."; fi
+
+    # Apply & log the yaml file using kubectl
+    log "Deploying the Rancher Backup encryptionconfig secret ..."
+    log "   [log] - Running Command: kubectl apply -f $file_path"
+    output=$(kubectl apply -f $file_path 2>&1)
+    # Capture the exit status of the previous command; if the command failed (non-zero status), log the error and exit; otherwise, log success 
+    status=$?; if [ $status -ne 0 ]; then log_error "   Command failed - Reason: $output"; exit 1; else log "   [Log] - Command succeeded"; log "   Rancher Catalog Helm Chart ClusterRepo created."; fi
+
+
+    # Print end of step activity
+    echo "*****************************************"
+    echo "Rancher Manager AWS Cloud Credentials configured."
+    echo "-------------------------------------------------"
+    echo ""
+}
+
+#=================================================================================================
+
+#-----------------------------------------------
+### 15- Check if Rancher Manager is Up & Running 
+#-----------------------------------------------
+
+step_15() {
+    # Print Step Activity
+    echo "---------------------------------------------------------------"
+    echo "15- Checking if Rancher Manager is up, running, & functional ..."
+    echo "---------------------------------------------------------------"
+    echo ""
+
+    # Perform & Log Actions for checking that Rancher Manager is up & running
+    log "Checking if Rancher Manager is up, running, & functional ..."
+    check_rancher_manager
+
+    # Print end of step activity
+    echo "*****************************************"
+    echo "Rancher Manager is now up, running, & functional."
+    echo "-------------------------------------------------"
+    echo ""
+}
+
+#=================================================================================================
+
+#-------------------------------------------------
+### 16- Create A Rancher manager API Bearrer Token 
+#-------------------------------------------------
+
+step_16() {
+    # Print Step Activity
     echo "----------------------------------------------------"
-    echo "14- Creating A Rancher Manager API Bearer Token ..."
+    echo "16- Creating A Rancher Manager API Bearer Token ..."
     echo "----------------------------------------------------"
     echo ""
 
-    # Log Actions for checking if bearer_token is already available and if not create one
-    log "   Checking if bearer_token API token is already available ..."
+    # Perform & Log Actions for creating a bearer_token
+    log "Creating A Rancher Manager API Bearer Token ..."
     authenticate_and_get_token
 
     # Print end of step activity
-    echo ""
-    echo "         Rancher Manager API Token generated & retrieved."
-    echo "---------------------------------------------------------"
+    echo "*****************************************"
+    echo "Rancher Manager API Token generated & retrieved."
+    echo "------------------------------------------------"
     echo ""
 }
 
 #=================================================================================================
 
 #--------------------------------------------------------
-### 15- Update the Rancher agent-tls-mode to System Store 
+### 17- Update the Rancher agent-tls-mode to System Store 
 #--------------------------------------------------------
 
-step_15() {
+step_17() {
     # Print Step Activity
-    echo ""
     echo "-----------------------------------------------------------"
-    echo "15- Updating the Rancher agent-tls-mode to System Store ..."
+    echo "17- Updating the Rancher agent-tls-mode to System Store ..."
     echo "-----------------------------------------------------------"
     echo ""
 
-    # Log Actions for checking if Rancher Manager is up and running
-    log "   Checking if Rancher Manager is Up & Running ..."
+    # Perform & Log Actions for Updating the Rancher agent-tls-mode to System Store
+    log "Updating the Rancher agent-tls-mode to System Store ..."
+
+    # Perform & Log Actions for checking if Rancher Manager is up and running
+    log "First - Checking if Rancher Manager is Up & Running ..."
     check_rancher_manager "$rancher_url"
 
-    # Log Actions for checking if bearer_token is already available and if not create one
-    log "   Checking if bearer_token API token is already available ..."
+    # Perform & Log Actions for checking if bearer_token is already available and if not create one
+    log "Second - Checking if bearer_token API token is already available ..."
     authenticate_and_get_token
 
-    # Log Actions for retrieving the current agent-tls-mode setting value
-    log "   Retrieving the current agent-tls-mode setting value ..."
+    # Perform & Log Actions for retrieving the current agent-tls-mode setting value
+    log "Third - Retrieving the current agent-tls-mode setting value & changing if required ..."
     # Fetch the current value of agent-tls-mode
     current_value=$(curl -s -X GET "https://${rancher_url}/v3/settings/agent-tls-mode" \
         -H "Authorization: Bearer $bearer_token" \
         -H "Content-Type: application/json" | jq -r '.value')
 
     # Check if the current_value indicates success
-    if echo "$current_value" | grep -q '"id"'; then
-        log "      Successfully retrieved the agent-tls-mode setting value."
-    else
-        log_error "Failed to retrieve the agent-tls-mode setting value. Full response is $current_value"
-        exit 1
-    fi
+    [ -n "$current_value" ] && log "   [log] - Successfully retrieved the agent-tls-mode setting value." || { log_error "   Failed to retrieve the agent-tls-mode setting value. Full response is $current_value"; exit 1; }
 
     # Check if the current value is already 'System Store'
     if [ "$current_value" == "System Store" ]; then
-        log "      agent-tls-mode is already set to 'System Store'. Skipping update."
+        log "   [log] - agent-tls-mode is already set to 'System Store'. Skipping update."
     else
-        log "      Updating Rancher agent-tls-mode to 'System Store' ..."
+        log "   [log] - Rancher agent-tls-mode is not set to 'System Store' - Updating to 'System Store' ..."
         # Update the agent-tls-mode setting
         response=$(curl -s -L -X PUT "https://${rancher_url}/v3/settings/agent-tls-mode" \
             -H "Authorization: Bearer $bearer_token" \
@@ -980,119 +1010,184 @@ step_15() {
             -d '{"value": "System Store"}')
         
         # Check if the response indicates success
-        if echo "$response" | grep -q '"id"'; then
-            log "      Successfully initiated update to 'System Store'."
-            echo "Successfully initiated update to 'System Store'."
-        else
-            log_error "Failed to update agent-tls-mode. Full response is $response"
-            exit 1
-        fi
+        if [[ $(echo "$response" | jq -e '.id') ]]; then log "   [log] - Successfully initiated update to 'System Store'."; else log_error "   Failed to update agent-tls-mode. Full response is $response"; exit 1; fi
 
         # Verify the updated value of agent-tls-mode
         updated_value=$(curl -s -X GET "https://${rancher_url}/v3/settings/agent-tls-mode" \
             -H "Authorization: Bearer $bearer_token" \
             -H "Content-Type: application/json" | jq -r '.value')
 
-        if [ "$updated_value" == "System Store" ]; then
-            log "      Successfully updated agent-tls-mode to 'System Store'."
-        else
-            log_error "The agent-tls-mode is not updated to 'System Store'. Current value is: $updated_value"
-            exit 1
-        fi
+        # Check if the agent-tls-mode was successfully updated to 'System Store'; log success or error and exit if failed
+        [[ "$updated_value" == "System Store" ]] && log "   [log] - Successfully updated agent-tls-mode to 'System Store'." || { log_error "   The agent-tls-mode is not updated to 'System Store'. Current value is: $updated_value"; exit 1; }
     fi
 
     # Print end of step activity
+    echo "*****************************************"
+    echo "Rancher Manager agent-tls-mode setting updated."
+    echo "-----------------------------------------------"
     echo ""
-    echo "         Rancher Manager agent-tls-mode setting updated."
-    echo "--------------------------------------------------------"
+}
+
+#=================================================================================================
+
+#-------------------------------------------------------
+### 18- Create a User in Rancher & Set Global Permission 
+#-------------------------------------------------------
+
+step_18() {
+    # Print Step Activity
+    echo "----------------------------------------------------------"
+    echo "18- Creating a User in Rancher & Set Global Permission ..."
+    echo "----------------------------------------------------------"
+    echo ""
+
+    # Perform & Log Actions for Updating the Rancher agent-tls-mode to System Store
+    log "Creating users in Rancher ..."
+    log "   [log] - Creating user tshaker user ..."
+    # Step 1: Create the user
+    create_user_response=$(curl -s -X POST "https://${rancher_url}/v3/users" \
+        -H "Authorization: Bearer $bearer_token" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "type": "user",
+            "username": "tshaker",
+            "password": "'"$default_password"'",
+            "name": "T Shaker",
+            "enabled": true
+            }')
+
+    # Check if user creation was successful
+    user_id=$(echo "$create_user_response" | jq -r '.id')
+    [ -z "$user_id" ] || [ "$user_id" == "null" ] && log_error "   Failed to create user. Response: $create_user_response" && exit 1 || log "   [log] - User created successfully with ID: $user_id"
+
+    # Step 2: Assign Standard User global role
+    log "   [log] - Assigning globa permission to user tshaker user ..."
+    assign_role_response=$(curl -s -X POST "https://${rancher_url}/v3/globalrolebindings" \
+        -H "Authorization: Bearer $bearer_token" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "type": "globalRoleBinding",
+            "userId": "'"$user_id"'",
+            "globalRoleId": "user"
+            }')
+    
+    # Check if role assignment was successful
+    role_id=$(echo "$assign_role_response" | jq -r '.id')
+    [ -z "$role_id" ] || [ "$role_id" == "null" ] && log_error "   Failed to assign Standard User role to user 'shaker'. Response: $assign_role_response" && exit 1 || log "   [log] - Standard User role assigned to 'shaker' successfully."
+
+    # Print end of step activity
+    echo "*****************************************"
+    echo "Rancher Manager agent-tls-mode setting updated."
+    echo "-----------------------------------------------"
     echo ""
 }
 
 #=================================================================================================
 
 #---------------------------------
-### 16- Create Downstream Clusters 
+### 19- Create Downstream Clusters 
 #---------------------------------
 
-step_16() {
+step_19() {
     # Print Step Activity
-    echo ""
     echo "--------------------------------------------------"
-    echo "16- Creating and Importing Downstream Clusters ..."
+    echo "19- Creating and Importing Downstream Clusters ..."
     echo "--------------------------------------------------"
     echo ""
 
-    # Log Actions for checking if Rancher Manager is up and running
-    log "   Checking if Rancher Manager is Up & Running ..."
+    # Perform & Log Actions for Updating the Rancher agent-tls-mode to System Store
+    log "Creating and Importing Downstream Clusters ..."
+
+    # Perform & Log Actions for checking if Rancher Manager is up and running
+    log "First - Checking if Rancher Manager is Up & Running ..."
     check_rancher_manager "$rancher_url"
 
-    # Ensure bearer_token is set, if not, authenticate and retrieve it
+    # Perform & Log Actions for checking if bearer_token is already available and if not create one
+    log "Second - Checking if bearer_token API token is already available ..."
     authenticate_and_get_token
 
+    # Perform & Log Actions for Creating & importing downstream clusters
+    log "Third - Creating & importing downstream clusters ..."
+
     # Log how many downstream clusters will be created
-    log "   The total downstream clusters to be created are: $dsc_count ..."
-    log "   Creating downstream clusters ..."
+    log "   [log] - The total downstream clusters to be created are: $dsc_count ..."
+    log "   [log] - Creating downstream clusters ..."
+
+    # Create an array to store the import commands along with the cluster name
+    cluster_import_commands=()
 
     # Loop to create and import downstream clusters
     for i in $(seq 1 "$dsc_count"); do
         # Generate the cluster name using the default prefix and a formatted number (01, 02, 03, etc.)
         local cluster_name="ts-suse-demo-dsc-$(printf "%02d" $i)"  # Ensures numbers are zero-padded
-        echo "Checking if cluster $cluster_name already exists..."
+        log "   [log] - Creating $cluster_name ..."
+        log "   [log] - Checking if cluster $cluster_name already exists..."
 
         # Step 1: Check if a cluster with the same name already exists
-        existing_cluster_id=$(curl -s -X GET "https://${rancher_url}/v3/clusters" \
+        # Retrieve the full list of clusters and check if the retrieval succeeded
+        log "   [log] - Retrieving full list of available clusters ..."
+        cluster_list=$(curl -s -X GET "https://${rancher_url}/v3/clusters" \
             -H "Authorization: Bearer $bearer_token" \
-            -H "Content-Type: application/json" | jq -r ".data[] | select(.name == \"$cluster_name\") | .id")
+            -H "Content-Type: application/json")
 
-        if [ -n "$existing_cluster_id" ]; then
-            echo "Cluster $cluster_name already exists with ID: $existing_cluster_id. Skipping creation."
-            continue  # Skip the creation if the cluster already exists
-        fi
+        # Retrieve the full list of clusters and check if the retrieval succeeded (one-liner with else)
+        echo "$cluster_list" | jq -e '. | has("data") and .data' &>/dev/null && log "   [log] - Cluster list successfully retrieved." || { log_error "   Failed to retrieve the cluster list. Exiting."; exit 1; }
 
+        # Check if the cluster already exists by its name
+        log "   [log] - Checking if $cluster_name is listed in the list of available clusters ..."
+        existing_cluster_id=$(echo "$cluster_list" | jq -r ".data[] | select(.name == \"$cluster_name\") | .id")
+        [ -n "$existing_cluster_id" ] && log "   [log] - Cluster $cluster_name already exists with ID: $existing_cluster_id. Skipping creation." && continue || log "   [log] - Cluster $cluster_name does not exist. Creating new one ..."
+        
         # Step 2: Create the cluster in Rancher using the Rancher API
-        cluster_id=$(curl -s -X POST "https://${rancher_url}/v3/clusters" \
+        log "   [log] - Creating cluster $cluster_name ..."
+        response=$(curl -s -X POST "https://${rancher_url}/v3/clusters" \
             -H "Authorization: Bearer $bearer_token" \
             -H "Content-Type: application/json" \
-            -d '{"type":"cluster","name":"'"$cluster_name"'"}' | jq -r '.id')
+            -d '{"type":"cluster","name":"'"$cluster_name"'"}')
 
-        # Check if the cluster creation was successful, if not, print an error message
-        if [ -z "$cluster_id" ]; then
-            echo "Failed to create cluster $cluster_name. No cluster ID returned."
-            continue  # Skip to the next cluster if creation failed
-        fi
-        echo "Cluster $cluster_name created with ID: $cluster_id"
+        # Check if the cluster creation was successfull, Check if the response contains an 'id' - If no 'id' is found, echo error and print the full response
+        cluster_id=$(echo "$response" | jq -r '.id')
+        [ -z "$cluster_id" ] || [ "$cluster_id" == "null" ] && log_error "   Failed to create cluster $cluster_name. No 'id' returned. Full response: $response" && exit 1 || log "   [log] - Cluster $cluster_name created successfully with ID: $cluster_id."
 
         # Step 3: Fetch registration tokens for the newly created cluster
-        registration_token=$(curl -s -X GET "https://${rancher_url}/v3/clusterregistrationtoken" \
+        # Due to the response of the below API call is miss-formated and causing issues in JQ parsing, some cleanup using sed & awk is required
+        # Retrieve the full response, then use sed and awk to cleanup
+        # Fetch registration tokens for the specific cluster by appending cluster ID to the URL
+        # Also, if the below API call is executed directly, only local cluster will be retrivied, thus sleep for 12 seconds
+        sleep 15
+        response=$(curl -s -X GET "https://${rancher_url}/v3/clusterregistrationtoken" \
             -H "Authorization: Bearer $bearer_token" \
-            -H "Content-Type: application/json" | jq -r ".data[] | select(.clusterId == \"$cluster_id\") | .token")
-
+            -H "Content-Type: application/json")
+        # Clean up
+        # Replace all instances of null (without quotes) with an empty string (with quotes)
+        cleaned_response=$(echo "$response" | sed 's/:null/:""/g')
+        # Add a space after each colon followed by a value or opening brace
+        cleaned_response=$(echo "$cleaned_response" | sed 's/":"/": "/g' | sed 's/":{"/": {"/g')
+        # Use awk to remove everything from "PowerShell -NoLogo -NonInteractive -Command" up to "| iex}\"" but leave a quote at the end
+        cleaned_response=$(echo "$cleaned_response" | awk '{gsub(/PowerShell -NoLogo -NonInteractive -Command[^|]*\| iex}\\"/, ""); print}')
+        # add the token in a variable
+        registration_token=$(echo "$cleaned_response" | jq -r ".data[] | select(.clusterId == \"$cluster_id\") | .token")
         # Check if we successfully retrieved the token
-        if [ -z "$registration_token" ]; then
-            echo "Failed to retrieve the registration token for cluster $cluster_name. Exiting."
-            continue  # Skip to the next cluster if token retrieval failed
-        fi
+        [ -z "$registration_token" ] || [ "$registration_token" == "null" ] && log_error "   Failed to retrieve the registration token for cluster $cluster_name. Exiting." && exit 1 || log "   [log] - Successfully retrieved registration token for $cluster_name - Token: $registration_token."
 
-        # Step 4: Output the retrieved token and other commands
+        # Step 4: Create the import commands
         import_command="kubectl apply -f https://rancher.rancher-demo.com/v3/import/$(echo "$registration_token" | sed 's/\//\\\//g')_$(echo "$cluster_id").yaml"
+        insecure_import_command="curl --insecure -sfL https://rancher.rancher-demo.com/v3/import/$(echo "$registration_token" | sed 's/\//\\\//g')_$(echo "$cluster_id").yaml | kubectl apply -f -"
 
-        # Output the import commands for the user
-        echo "Import commands for $cluster_name:"
-        echo "1. Default command:"
-        echo "$import_command"
-        echo ""
-        echo "2. Insecure command (useful for self-signed certs):"
-        echo "curl --insecure -sfL https://rancher.rancher-demo.com/v3/import/$(echo "$registration_token" | sed 's/\//\\\//g')_$(echo "$cluster_id").yaml | kubectl apply -f -"
-        echo ""
-        echo "3. Node command:"
-        echo "sudo docker run -d --privileged --restart=unless-stopped --net=host -v /etc/kubernetes:/etc/kubernetes -v /var/run:/var/run registry.rancher.com/rancher/rancher-agent:v2.9.2 --server https://rancher.rancher-demo.com --token $registration_token"
-        echo "-----------------------------------------------------"
+        # Add the cluster name and commands to the array
+        cluster_import_commands+=(
+            "Cluster Discription: Downstream Cluster Number $i"
+            "Cluster Name: $cluster_name"
+            "Import secure command: $import_command"
+            "Import un-secure command: $insecure_import_command"
+            "-----------------------------------------------------"
+        )
     done
 
     # Print end of step activity
-    echo ""
-    echo "         Downstream clusters created and import commands generated."
-    echo "------------------------------------------------------------"
+    echo "*****************************************"
+    echo "Downstream clusters created and import commands generated."
+    echo "----------------------------------------------------------"
     echo ""
 }
 
@@ -1106,10 +1201,8 @@ step_16() {
 ### Print starting point (step number) 
 #-------------------------------------
 
-echo ""
-echo "----------------------------------------"
 echo "Starting from step number $starting_step"
-echo "----------------------------------------"
+echo "----------------------------"
 echo ""
 
 # Execute steps conditionally based on the start_step
@@ -1129,6 +1222,19 @@ if (( starting_step <= 13 )); then step_13; fi
 if (( starting_step <= 14 )); then step_14; fi
 if (( starting_step <= 15 )); then step_15; fi
 if (( starting_step <= 16 )); then step_16; fi
+if (( starting_step <= 17 )); then step_17; fi
+if (( starting_step <= 18 )); then step_18; fi
+if (( starting_step <= 19 )); then step_19; fi
+
+# Print Rancher Cluster Import Commands
+echo ""
+echo "Cluster Import Commands"
+echo "-----------------------"
+# Loop through each element in the array and echo it
+for element in "${cluster_import_commands[@]}"; do
+    echo "$element"
+done
+echo ""
 
 #=================================================================================================
 #=================================================================================================
