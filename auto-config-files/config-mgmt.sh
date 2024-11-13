@@ -911,8 +911,8 @@ EOF
 
     # Print end of step activity
     echo "*****************************************"
-    echo "Rancher Manager AWS Cloud Credentials configured."
-    echo "-------------------------------------------------"
+    echo "Helm Charts Repo catalog are aded to Rancher."
+    echo "---------------------------------------------"
     echo ""
 }
 
