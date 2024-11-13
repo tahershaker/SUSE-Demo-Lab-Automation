@@ -42,7 +42,9 @@ Argument lists & explanation
 ```bash
 curl https://raw.githubusercontent.com/tahershaker/SUSE-Demo-Lab-Automation/refs/heads/main/config-files/dsc-01-master-01.sh | bash -s -- \
    --cert_version "--add-venison-here--" \
-   --email "--add-email-here--"
+   --email "--add-email-here--" \
+   --online_botique_url "--add-fqdn-here---" \
+   --nv_demo_url "--add-fqdn-here---" 
 ```
 
 Argument lists & explanation
