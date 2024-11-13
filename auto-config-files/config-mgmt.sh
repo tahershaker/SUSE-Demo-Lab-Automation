@@ -1045,6 +1045,7 @@ step_18() {
     log "Creating users in Rancher ..."
     log "   [log] - Creating user tshaker user ..."
     # Step 1: Create the user
+    echo $default_password
     create_user_response=$(curl -s -X POST "https://${rancher_url}/v3/users" \
         -H "Authorization: Bearer $bearer_token" \
         -H "Content-Type: application/json" \
