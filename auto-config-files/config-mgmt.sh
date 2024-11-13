@@ -1043,9 +1043,21 @@ step_18() {
 
     # Perform & Log Actions for Updating the Rancher agent-tls-mode to System Store
     log "Creating users in Rancher ..."
-    log "   [log] - Creating user tshaker user ..."
+
+    # Perform & Log Actions for checking if Rancher Manager is up and running
+    log "First - Checking if Rancher Manager is Up & Running ..."
+    check_rancher_manager "$rancher_url"
+
+    # Perform & Log Actions for checking if bearer_token is already available and if not create one
+    log "Second - Checking if bearer_token API token is already available ..."
+    authenticate_and_get_token
+
+    # Perform & Log Actions for Creating users
+    log "Third - Creating users ..."
+
     # Step 1: Create the user
-    echo $default_password
+    log "   [log] - Creating user tshaker user ..."
+    echo "The default password is: $default_password"
     create_user_response=$(curl -s -X POST "https://${rancher_url}/v3/users" \
         -H "Authorization: Bearer $bearer_token" \
         -H "Content-Type: application/json" \
